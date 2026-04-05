@@ -9,8 +9,6 @@ import { useState } from "react";
 export function RegisterForm() {
   const router = useRouter();
   const [nombreTienda, setNombreTienda] = useState("");
-  const [direccion, setDireccion] = useState("");
-  const [telefono, setTelefono] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
   const [email, setEmail] = useState("");
@@ -42,7 +40,9 @@ export function RegisterForm() {
 
     const supabase = createClient();
     if (!supabase) {
-      setError("Supabase no está configurado. Añade las variables en .env.local.");
+      setError(
+        "Supabase no está configurado. Añade las variables en .env.local.",
+      );
       return;
     }
     setLoading(true);
@@ -54,8 +54,6 @@ export function RegisterForm() {
         email: email.trim(),
         password,
         nombreTienda,
-        direccion,
-        telefono,
         nombre,
         apellido,
       }),
@@ -79,7 +77,8 @@ export function RegisterForm() {
     }
 
     if (apiRes.status === 501 && apiJson.fallback) {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
+      const origin =
+        typeof window !== "undefined" ? window.location.origin : "";
       const { data, error: signError } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -104,8 +103,6 @@ export function RegisterForm() {
 
       const { error: rpcError } = await supabase.rpc("create_tienda_y_perfil_admin", {
         p_nombre_tienda: nombreTienda,
-        p_direccion: direccion,
-        p_telefono: telefono,
         p_nombre: nombre,
         p_apellido: apellido,
       });
@@ -125,7 +122,8 @@ export function RegisterForm() {
     setLoading(false);
     setError(
       mapAuthErrorMessage(
-        apiJson.error ?? "No se pudo registrar. Revisa los datos e inténtalo de nuevo.",
+        apiJson.error ??
+          "No se pudo registrar. Revisa los datos e inténtalo de nuevo.",
       ),
     );
   }
@@ -133,7 +131,7 @@ export function RegisterForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto w-full max-w-lg space-y-8 rounded-[2rem] border border-stone-200/80 bg-surface-container-lowest/95 p-8 shadow-xl backdrop-blur-sm md:p-10"
+      className="mx-auto w-full max-w-lg space-y-4xl border border-stone-200/80 bg-surface-container-lowest/95 p-8 shadow-xl backdrop-blur-sm md:p-10"
     >
       <div className="space-y-1 text-center">
         <h1 className="font-headline text-2xl font-extrabold text-on-surface md:text-3xl">
@@ -159,31 +157,6 @@ export function RegisterForm() {
             onChange={(e) => setNombreTienda(e.target.value)}
             className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/40"
             placeholder="Ej. Café Central"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="direccion">
-            Dirección
-          </label>
-          <input
-            id="direccion"
-            value={direccion}
-            onChange={(e) => setDireccion(e.target.value)}
-            className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/40"
-            placeholder="Calle y número"
-          />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="telefono">
-            Teléfono
-          </label>
-          <input
-            id="telefono"
-            type="tel"
-            value={telefono}
-            onChange={(e) => setTelefono(e.target.value)}
-            className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/40"
-            placeholder="+54 …"
           />
         </div>
       </section>
@@ -249,7 +222,10 @@ export function RegisterForm() {
       </section>
 
       {error ? (
-        <p className="rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error" role="alert">
+        <p
+          className="rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}
@@ -262,7 +238,7 @@ export function RegisterForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-2xl bg-gradient-to-br from-primary to-primary-dim py-4 font-bold text-on-primary shadow-lg shadow-primary/25 transition-transform active:scale-[0.99] disabled:opacity-60"
+        className="w-full rounded-2xl bg-linear-to-br from-primary to-primary-dim py-4 font-bold text-on-primary shadow-lg shadow-primary/25 transition-transform active:scale-[0.99] disabled:opacity-60"
       >
         {loading ? "Creando…" : "Crear tienda y registrarme"}
       </button>

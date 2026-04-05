@@ -3,13 +3,15 @@ alwaysApply: true
 ---
 
 ---
-description: 
+
+description:
 alwaysApply: true
+
 ---
 
 # Database Schema (Supabase/PostgreSQL)
 
-- **tiendas**: id (uuid), nombre, direccion, telefono.
+- **tiendas**: id (uuid), nombre.
 - **perfiles**: id (references auth.users), id_tienda, nombre, apellido, rol ('admin', 'normal').
 - **categorias**: id, id_tienda, nombre, id_padre (self-reference para subcategorías).
 - **productos**: id, id_tienda, id_categoria, nombre, descripcion, precio_actual.
@@ -18,6 +20,7 @@ alwaysApply: true
 - **detalle_ventas**: id, id_venta, id_producto, cantidad, precio_unitario_historico, subtotal.
 
 ## Business Rules
+
 - Un producto puede pertenecer a una categoría o subcategoría (vía id_categoria).
 - El precio de venta se congela en `detalle_ventas.precio_unitario_historico`.
 - El sistema es Multi-tenant: siempre filtrar por `id_tienda`.

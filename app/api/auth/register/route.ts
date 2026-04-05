@@ -5,8 +5,6 @@ type Body = {
   email?: string;
   password?: string;
   nombreTienda?: string;
-  direccion?: string;
-  telefono?: string;
   nombre?: string;
   apellido?: string;
 };
@@ -37,8 +35,6 @@ export async function POST(request: Request) {
   const nombreTienda = typeof body.nombreTienda === "string" ? body.nombreTienda.trim() : "";
   const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
   const apellido = typeof body.apellido === "string" ? body.apellido.trim() : "";
-  const direccion = typeof body.direccion === "string" ? body.direccion.trim() : "";
-  const telefono = typeof body.telefono === "string" ? body.telefono.trim() : "";
 
   if (!email || !password || !nombreTienda || !nombre) {
     return NextResponse.json(
@@ -73,11 +69,7 @@ export async function POST(request: Request) {
 
   const { data: tiendaRow, error: tiendaErr } = await admin
     .from("tiendas")
-    .insert({
-      nombre: nombreTienda,
-      direccion: direccion || null,
-      telefono: telefono || null,
-    })
+    .insert({ nombre: nombreTienda })
     .select("id")
     .single();
 

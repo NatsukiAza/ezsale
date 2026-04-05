@@ -4,8 +4,6 @@
 create table if not exists public.tiendas (
   id uuid primary key default gen_random_uuid(),
   nombre text not null,
-  direccion text,
-  telefono text,
   created_at timestamptz not null default now()
 );
 
@@ -23,8 +21,6 @@ create index if not exists perfiles_id_tienda_idx on public.perfiles (id_tienda)
 -- Registro: tras signUp, el usuario autenticado crea su tienda y queda como admin
 create or replace function public.create_tienda_y_perfil_admin (
   p_nombre_tienda text,
-  p_direccion text,
-  p_telefono text,
   p_nombre text,
   p_apellido text
 )
@@ -44,8 +40,8 @@ begin
     raise exception 'Profile already exists';
   end if;
 
-  insert into public.tiendas (nombre, direccion, telefono)
-  values (trim(p_nombre_tienda), nullif(trim(p_direccion), ''), nullif(trim(p_telefono), ''))
+  insert into public.tiendas (nombre)
+  values (trim(p_nombre_tienda))
   returning id into tid;
 
   insert into public.perfiles (id, id_tienda, nombre, apellido, rol)
@@ -55,7 +51,7 @@ begin
 end;
 $$;
 
-grant execute on function public.create_tienda_y_perfil_admin (text, text, text, text, text) to authenticated;
+grant execute on function public.create_tienda_y_perfil_admin (text, text, text) to authenticated;
 
 alter table public.tiendas enable row level security;
 alter table public.perfiles enable row level security;
@@ -67,10 +63,8 @@ create policy "tiendas_select_own"
     id in (select id_tienda from public.perfiles where id = auth.uid())
   );
 
-create policy "perfiles_select_own_tienda"
+create policy "perfiles_select_own"
   on public.perfiles for select
-  using (
-    id_tienda in (select id_tienda from public.perfiles where id = auth.uid())
-  );
+  using (id = auth.uid());
 
 -- Inserción manual solo vía service role / migraciones; el alta va por la función
