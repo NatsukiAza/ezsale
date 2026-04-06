@@ -38,6 +38,21 @@ function searchFold(s: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
+function iconForMedioPago(nombre: string) {
+  switch (nombre) {
+    case "Efectivo":
+      return "payments";
+    case "Mercado Pago":
+      return "qr_code_2";
+    case "Transferencia":
+      return "account_balance";
+    case "Tarjeta":
+      return "credit_card";
+    default:
+      return "credit_card";
+  }
+}
+
 export function NewSaleView() {
   const router = useRouter();
   const [idTienda, setIdTienda] = useState<string | null>(null);
@@ -510,7 +525,7 @@ export function NewSaleView() {
                   Supabase.
                 </p>
               ) : (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                   {mediosPago.map((m) => {
                     const active = selectedMedioId === m.id;
                     return (
@@ -525,11 +540,7 @@ export function NewSaleView() {
                         }`}
                       >
                         <span className="material-symbols-outlined text-3xl">
-                          {m.nombre === "Efectivo"
-                            ? "payments"
-                            : m.nombre === "Mercado Pago"
-                              ? "qr_code_2"
-                              : "credit_card"}
+                          {iconForMedioPago(m.nombre)}
                         </span>
                         <span className="text-xs">{m.nombre}</span>
                       </button>
