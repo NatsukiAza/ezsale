@@ -6,10 +6,10 @@ import { SignOutButton } from "@/app/components/sign-out-button";
 import { useEffect, useState } from "react";
 
 const nav = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/products", label: "Products" },
-  { href: "/reports", label: "Reports" },
-  { href: "/team", label: "Team" },
+  { href: "/dashboard", label: "Panel" },
+  { href: "/products", label: "Productos" },
+  { href: "/reports", label: "Reportes" },
+  { href: "/team", label: "Equipo" },
 ];
 
 type TopAppBarProps = {
