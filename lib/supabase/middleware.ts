@@ -15,7 +15,6 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/new-sale") ||
     path.startsWith("/products") ||
     path.startsWith("/reports") ||
-    path.startsWith("/sales") ||
     path.startsWith("/team") ||
     path.startsWith("/registro/completar");
 
@@ -48,6 +47,36 @@ export async function updateSession(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (path.startsWith("/auth/cambiar-password") && !user) {
+    const u = request.nextUrl.clone();
+    u.pathname = "/";
+    return NextResponse.redirect(u);
+  }
+
+  let debeCambiarPassword = false;
+  if (user) {
+    const { data: perfilPw } = await supabase
+      .from("perfiles")
+      .select("debe_cambiar_password")
+      .eq("id", user.id)
+      .maybeSingle();
+    debeCambiarPassword = perfilPw?.debe_cambiar_password === true;
+  }
+
+  if (debeCambiarPassword) {
+    const allowed =
+      path.startsWith("/auth/cambiar-password") || path.startsWith("/auth/callback");
+    if (!allowed) {
+      const u = request.nextUrl.clone();
+      u.pathname = "/auth/cambiar-password";
+      return NextResponse.redirect(u);
+    }
+  } else if (path.startsWith("/auth/cambiar-password") && user) {
+    const u = request.nextUrl.clone();
+    u.pathname = "/dashboard";
+    return NextResponse.redirect(u);
+  }
 
   const isAuthPage = path === "/" || path === "/registro";
 

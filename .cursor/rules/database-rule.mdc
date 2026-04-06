@@ -17,7 +17,7 @@ alwaysApply: true
 - **productos**: id, id_tienda, id_categoria, nombre, descripcion, precio_actual.
 - **medios_pago**: id, nombre.
 - **ventas**: id, id_tienda, id_usuario, id_medio_pago, monto_total, fecha_venta.
-- **detalle_ventas**: id, id_venta, id_producto, cantidad, precio_unitario_historico, subtotal.
+- **detalle_ventas**: id, id_venta, id_product, cantidad, precio_unitario_historico, subtotal.
 
 ## Business Rules
 

@@ -28,7 +28,21 @@ export function RegisterForm() {
       setError(mapAuthErrorMessage(signErr.message));
       return false;
     }
-    router.push("/dashboard");
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    const { data: perfilLogin } = user
+      ? await supabase
+          .from("perfiles")
+          .select("debe_cambiar_password")
+          .eq("id", user.id)
+          .maybeSingle()
+      : { data: null };
+    if (perfilLogin?.debe_cambiar_password === true) {
+      router.push("/auth/cambiar-password");
+    } else {
+      router.push("/dashboard");
+    }
     router.refresh();
     return true;
   }
