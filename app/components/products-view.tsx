@@ -13,11 +13,20 @@ type CategoriaListItem = {
 
 type ProductoListItem = {
   id: string;
+  id_categoria: string;
   nombre: string;
   descripcion: string;
   precio_actual: number;
   categoriaNombre: string | null;
 };
+
+/** Normaliza para búsqueda (minúsculas, sin acentos) */
+function searchFold(s: string) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
 
 type ActiveTab = "productos" | "categorias";
 type ModalKind = "producto" | "categoria";
@@ -44,11 +53,17 @@ function formatPrice(n: number) {
 
 export function ProductsView() {
   const [idTienda, setIdTienda] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [categoriasList, setCategoriasList] = useState<CategoriaListItem[]>([]);
   const [productos, setProductos] = useState<ProductoListItem[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>("productos");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [editingProductoId, setEditingProductoId] = useState<string | null>(null);
+  const [editingCategoriaId, setEditingCategoriaId] = useState<string | null>(
+    null,
+  );
 
   const [modalOpen, setModalOpen] = useState(false);
   const [modalKind, setModalKind] = useState<ModalKind>("producto");
@@ -87,6 +102,24 @@ export function ProductsView() {
   const canSubmit =
     modalKind === "producto" ? canSubmitProducto : canSubmitCategoria;
 
+  const productosFiltrados = useMemo(() => {
+    const q = searchFold(searchQuery.trim());
+    if (!q) return productos;
+    return productos.filter((p) => {
+      const hay = `${p.nombre} ${p.descripcion} ${p.categoriaNombre ?? ""}`;
+      return searchFold(hay).includes(q);
+    });
+  }, [productos, searchQuery]);
+
+  const categoriasFiltradas = useMemo(() => {
+    const q = searchFold(searchQuery.trim());
+    if (!q) return categoriasList;
+    return categoriasList.filter((c) => {
+      const hay = `${c.nombre} ${c.parentNombre ?? ""}`;
+      return searchFold(hay).includes(q);
+    });
+  }, [categoriasList, searchQuery]);
+
   const loadData = useCallback(async () => {
     const supabase = createClient();
     if (!supabase) {
@@ -106,7 +139,7 @@ export function ProductsView() {
 
     const { data: perfil, error: perfilErr } = await supabase
       .from("perfiles")
-      .select("id_tienda")
+      .select("id_tienda, rol")
       .eq("id", user.id)
       .maybeSingle();
 
@@ -118,6 +151,7 @@ export function ProductsView() {
 
     const tid = perfil.id_tienda as string;
     setIdTienda(tid);
+    setIsAdmin(perfil.rol === "admin");
 
     const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] =
       await Promise.all([
@@ -128,7 +162,9 @@ export function ProductsView() {
           .order("nombre"),
         supabase
           .from("productos")
-          .select("id, nombre, descripcion, precio_actual, categorias ( nombre )")
+          .select(
+            "id, id_categoria, nombre, descripcion, precio_actual, categorias ( nombre )",
+          )
           .eq("id_tienda", tid)
           .order("nombre"),
       ]);
@@ -157,6 +193,7 @@ export function ProductsView() {
       setProductos(
         rows.map((row) => ({
           id: row.id as string,
+          id_categoria: row.id_categoria as string,
           nombre: row.nombre as string,
           descripcion: row.descripcion as string,
           precio_actual: Number(row.precio_actual),
@@ -174,10 +211,13 @@ export function ProductsView() {
   function selectTab(tab: ActiveTab) {
     setActiveTab(tab);
     setModalOpen(false);
+    setSearchQuery("");
   }
 
   function openModal() {
     setFormError(null);
+    setEditingProductoId(null);
+    setEditingCategoriaId(null);
     setNombre("");
     setDescripcion("");
     setPrecio("");
@@ -189,9 +229,101 @@ export function ProductsView() {
     setModalOpen(true);
   }
 
+  function openEditProducto(p: ProductoListItem) {
+    if (!isAdmin) return;
+    setFormError(null);
+    setEditingProductoId(p.id);
+    setEditingCategoriaId(null);
+    setNombre(p.nombre);
+    setDescripcion(p.descripcion);
+    setPrecio(String(p.precio_actual));
+    setIdCategoria(p.id_categoria);
+    setModalKind("producto");
+    setModalOpen(true);
+  }
+
+  function openEditCategoria(c: CategoriaListItem) {
+    if (!isAdmin) return;
+    setFormError(null);
+    setEditingCategoriaId(c.id);
+    setEditingProductoId(null);
+    setCatNombre(c.nombre);
+    const sub = Boolean(c.id_padre);
+    setEsSubcategoria(sub);
+    setIdPadre(sub && c.id_padre ? c.id_padre : "");
+    setModalKind("categoria");
+    setModalOpen(true);
+  }
+
   function closeModal() {
     if (saving) return;
     setModalOpen(false);
+    setEditingProductoId(null);
+    setEditingCategoriaId(null);
+  }
+
+  async function handleDeleteProducto(p: ProductoListItem) {
+    if (!isAdmin || !idTienda) return;
+    if (
+      !confirm(
+        `¿Eliminar el producto "${p.nombre}"? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    const supabase = createClient();
+    if (!supabase) {
+      setLoadError("Supabase no está configurado.");
+      return;
+    }
+    setLoadError(null);
+    const { error } = await supabase
+      .from("productos")
+      .delete()
+      .eq("id", p.id)
+      .eq("id_tienda", idTienda);
+    if (error) {
+      setLoadError(
+        error.message.includes("foreign key") || error.code === "23503"
+          ? "No se puede eliminar: el producto está asociado a ventas."
+          : error.message,
+      );
+      return;
+    }
+    setLoadingList(true);
+    await loadData();
+  }
+
+  async function handleDeleteCategoria(c: CategoriaListItem) {
+    if (!isAdmin || !idTienda) return;
+    if (
+      !confirm(
+        `¿Eliminar la categoría "${c.nombre}"? Esta acción no se puede deshacer.`,
+      )
+    ) {
+      return;
+    }
+    const supabase = createClient();
+    if (!supabase) {
+      setLoadError("Supabase no está configurado.");
+      return;
+    }
+    setLoadError(null);
+    const { error } = await supabase
+      .from("categorias")
+      .delete()
+      .eq("id", c.id)
+      .eq("id_tienda", idTienda);
+    if (error) {
+      setLoadError(
+        error.message.includes("foreign key") || error.code === "23503"
+          ? "No se puede eliminar: hay productos u otras categorías que dependen de ella."
+          : error.message,
+      );
+      return;
+    }
+    setLoadingList(true);
+    await loadData();
   }
 
   async function handleSubmitProducto(e: React.FormEvent) {
@@ -212,13 +344,25 @@ export function ProductsView() {
     setSaving(true);
     setFormError(null);
 
-    const { error } = await supabase.from("productos").insert({
-      id_tienda: idTienda,
-      id_categoria: idCategoria,
-      nombre: nombre.trim(),
-      descripcion: descripcion.trim(),
-      precio_actual: precioNum,
-    });
+    const editing = editingProductoId;
+    const { error } = editing
+      ? await supabase
+          .from("productos")
+          .update({
+            id_categoria: idCategoria,
+            nombre: nombre.trim(),
+            descripcion: descripcion.trim(),
+            precio_actual: precioNum,
+          })
+          .eq("id", editing)
+          .eq("id_tienda", idTienda)
+      : await supabase.from("productos").insert({
+          id_tienda: idTienda,
+          id_categoria: idCategoria,
+          nombre: nombre.trim(),
+          descripcion: descripcion.trim(),
+          precio_actual: precioNum,
+        });
 
     setSaving(false);
 
@@ -228,6 +372,7 @@ export function ProductsView() {
     }
 
     setModalOpen(false);
+    setEditingProductoId(null);
     setLoadingList(true);
     await loadData();
   }
@@ -249,11 +394,21 @@ export function ProductsView() {
     setSaving(true);
     setFormError(null);
 
-    const { error } = await supabase.from("categorias").insert({
-      id_tienda: idTienda,
-      nombre: catNombre.trim(),
-      id_padre: esSubcategoria && idPadre ? idPadre : null,
-    });
+    const editing = editingCategoriaId;
+    const { error } = editing
+      ? await supabase
+          .from("categorias")
+          .update({
+            nombre: catNombre.trim(),
+            id_padre: esSubcategoria && idPadre ? idPadre : null,
+          })
+          .eq("id", editing)
+          .eq("id_tienda", idTienda)
+      : await supabase.from("categorias").insert({
+          id_tienda: idTienda,
+          nombre: catNombre.trim(),
+          id_padre: esSubcategoria && idPadre ? idPadre : null,
+        });
 
     setSaving(false);
 
@@ -263,6 +418,7 @@ export function ProductsView() {
     }
 
     setModalOpen(false);
+    setEditingCategoriaId(null);
     setLoadingList(true);
     await loadData();
   }
@@ -294,11 +450,14 @@ export function ProductsView() {
               className="w-full rounded-xl border-none bg-surface-container-low py-3 pr-4 pl-11 transition-all focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/30"
               placeholder={
                 activeTab === "productos"
-                  ? "Buscar por nombre o SKU..."
+                  ? "Buscar por nombre o descripción..."
                   : "Buscar categoría por nombre..."
               }
               type="search"
               name="q"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoComplete="off"
             />
           </div>
           <div className="flex gap-2">
@@ -358,8 +517,13 @@ export function ProductsView() {
               <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
                 No hay productos todavía. Usá el botón + para agregar el primero.
               </p>
+            ) : productosFiltrados.length === 0 ? (
+              <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
+                No hay productos que coincidan con &quot;{searchQuery.trim()}
+                &quot;.
+              </p>
             ) : (
-              productos.map((p) => (
+              productosFiltrados.map((p) => (
                 <div
                   key={p.id}
                   className="group flex items-center justify-between rounded-2xl border border-transparent bg-surface-container-lowest p-4 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5"
@@ -388,22 +552,26 @@ export function ProductsView() {
                         {formatPrice(Number(p.precio_actual))}
                       </p>
                     </div>
-                    <div className="flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                      <button
-                        type="button"
-                        className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-primary-container/20 hover:text-primary"
-                        aria-label="Editar"
-                      >
-                        <span className="material-symbols-outlined">edit</span>
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-error-container/20 hover:text-error"
-                        aria-label="Eliminar"
-                      >
-                        <span className="material-symbols-outlined">delete</span>
-                      </button>
-                    </div>
+                    {isAdmin ? (
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openEditProducto(p)}
+                          className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-primary-container/20 hover:text-primary"
+                          aria-label="Editar"
+                        >
+                          <span className="material-symbols-outlined">edit</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteProducto(p)}
+                          className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-error-container/20 hover:text-error"
+                          aria-label="Eliminar"
+                        >
+                          <span className="material-symbols-outlined">delete</span>
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               ))
@@ -412,8 +580,13 @@ export function ProductsView() {
             <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
               No hay categorías todavía. Usá el botón + para crear la primera.
             </p>
+          ) : categoriasFiltradas.length === 0 ? (
+            <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
+              No hay categorías que coincidan con &quot;{searchQuery.trim()}
+              &quot;.
+            </p>
           ) : (
-            categoriasList.map((c) => (
+            categoriasFiltradas.map((c) => (
               <div
                 key={c.id}
                 className="group flex items-center justify-between rounded-2xl border border-transparent bg-surface-container-lowest p-4 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5"
@@ -439,22 +612,26 @@ export function ProductsView() {
                     </div>
                   </div>
                 </div>
-                <div className="flex gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                  <button
-                    type="button"
-                    className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-primary-container/20 hover:text-primary"
-                    aria-label="Editar"
-                  >
-                    <span className="material-symbols-outlined">edit</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-error-container/20 hover:text-error"
-                    aria-label="Eliminar"
-                  >
-                    <span className="material-symbols-outlined">delete</span>
-                  </button>
-                </div>
+                {isAdmin ? (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openEditCategoria(c)}
+                      className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-primary-container/20 hover:text-primary"
+                      aria-label="Editar"
+                    >
+                      <span className="material-symbols-outlined">edit</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleDeleteCategoria(c)}
+                      className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-error-container/20 hover:text-error"
+                      aria-label="Eliminar"
+                    >
+                      <span className="material-symbols-outlined">delete</span>
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))
           )}
@@ -500,10 +677,12 @@ export function ProductsView() {
                       id="add-product-title"
                       className="font-headline text-2xl font-extrabold text-on-surface"
                     >
-                      Nuevo producto
+                      {editingProductoId ? "Editar producto" : "Nuevo producto"}
                     </h2>
                     <p className="mt-1 text-sm text-on-surface-variant">
-                      Completá todos los campos para guardar en tu tienda.
+                      {editingProductoId
+                        ? "Modificá los datos y guardá los cambios."
+                        : "Completá todos los campos para guardar en tu tienda."}
                     </p>
                   </div>
                   <button
@@ -610,7 +789,11 @@ export function ProductsView() {
                       disabled={!canSubmit || saving}
                       className="rounded-2xl bg-linear-to-br from-primary to-primary-dim px-6 py-3 font-bold text-on-primary shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {saving ? "Guardando…" : "Guardar producto"}
+                      {saving
+                        ? "Guardando…"
+                        : editingProductoId
+                          ? "Guardar cambios"
+                          : "Guardar producto"}
                     </button>
                   </div>
                 </form>
@@ -623,10 +806,12 @@ export function ProductsView() {
                       id="add-cat-title"
                       className="font-headline text-2xl font-extrabold text-on-surface"
                     >
-                      Nueva categoría
+                      {editingCategoriaId ? "Editar categoría" : "Nueva categoría"}
                     </h2>
                     <p className="mt-1 text-sm text-on-surface-variant">
-                      Nombre obligatorio. Marcá si es subcategoría y elegí la categoría padre.
+                      {editingCategoriaId
+                        ? "Actualizá el nombre o la jerarquía y guardá."
+                        : "Nombre obligatorio. Marcá si es subcategoría y elegí la categoría padre."}
                     </p>
                   </div>
                   <button
@@ -683,11 +868,13 @@ export function ProductsView() {
                         className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/40 disabled:opacity-50"
                       >
                         <option value="">Seleccioná la categoría padre</option>
-                        {categoriasList.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.nombre}
-                          </option>
-                        ))}
+                        {categoriasList
+                          .filter((cat) => cat.id !== editingCategoriaId)
+                          .map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.nombre}
+                            </option>
+                          ))}
                       </select>
                       {categoriasList.length === 0 ? (
                         <p className="text-xs text-on-surface-variant">
@@ -720,7 +907,11 @@ export function ProductsView() {
                       disabled={!canSubmit || saving}
                       className="rounded-2xl bg-linear-to-br from-primary to-primary-dim px-6 py-3 font-bold text-on-primary shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {saving ? "Guardando…" : "Guardar categoría"}
+                      {saving
+                        ? "Guardando…"
+                        : editingCategoriaId
+                          ? "Guardar cambios"
+                          : "Guardar categoría"}
                     </button>
                   </div>
                 </form>
