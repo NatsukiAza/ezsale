@@ -7,6 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 type CategoriaRow = { id: string; nombre: string };
 type ProductoRow = {
   id: string;
+  id_categoria: string;
   nombre: string;
   precio_actual: number;
 };
@@ -54,6 +55,7 @@ function iconForMedioPago(nombre: string) {
 }
 
 export function NewSaleView() {
+  const PRODUCTOS_POR_PAGINA = 5;
   const router = useRouter();
   const [idTienda, setIdTienda] = useState<string | null>(null);
   const [categorias, setCategorias] = useState<CategoriaRow[]>([]);
@@ -62,6 +64,7 @@ export function NewSaleView() {
   const [selectedCategoryId, setSelectedCategoryId] =
     useState<string>(ALL_CATEGORY_ID);
   const [productSearch, setProductSearch] = useState("");
+  const [currentProductPage, setCurrentProductPage] = useState(1);
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [selectedMedioId, setSelectedMedioId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -155,18 +158,15 @@ export function NewSaleView() {
   }, [loadInitial]);
 
   const loadProductos = useCallback(
-    async (tid: string, categoriaId: string) => {
+    async (tid: string) => {
       const supabase = createClient();
       if (!supabase) return;
       setLoadingProducts(true);
-      let q = supabase
+      const q = supabase
         .from("productos")
-        .select("id, nombre, precio_actual")
+        .select("id, id_categoria, nombre, precio_actual")
         .eq("id_tienda", tid)
         .order("nombre");
-      if (categoriaId !== ALL_CATEGORY_ID) {
-        q = q.eq("id_categoria", categoriaId);
-      }
       const { data, error } = await q;
       setLoadingProducts(false);
       if (error) {
@@ -184,14 +184,41 @@ export function NewSaleView() {
       setProductos([]);
       return;
     }
-    void loadProductos(idTienda, selectedCategoryId);
-  }, [idTienda, selectedCategoryId, loadProductos]);
+    void loadProductos(idTienda);
+  }, [idTienda, loadProductos]);
+
+  const productosPorCategoria = useMemo(() => {
+    if (selectedCategoryId === ALL_CATEGORY_ID) return productos;
+    return productos.filter((p) => p.id_categoria === selectedCategoryId);
+  }, [productos, selectedCategoryId]);
 
   const productosFiltrados = useMemo(() => {
     const q = searchFold(productSearch.trim());
-    if (!q) return productos;
-    return productos.filter((p) => searchFold(p.nombre).includes(q));
-  }, [productos, productSearch]);
+    // Si hay búsqueda, busca sobre todo el catálogo (global).
+    const base = q ? productos : productosPorCategoria;
+    if (!q) return base;
+    return base.filter((p) => searchFold(p.nombre).includes(q));
+  }, [productos, productosPorCategoria, productSearch]);
+
+  const totalProductPages = useMemo(
+    () => Math.max(1, Math.ceil(productosFiltrados.length / PRODUCTOS_POR_PAGINA)),
+    [productosFiltrados.length, PRODUCTOS_POR_PAGINA],
+  );
+
+  const productosPaginados = useMemo(() => {
+    const start = (currentProductPage - 1) * PRODUCTOS_POR_PAGINA;
+    return productosFiltrados.slice(start, start + PRODUCTOS_POR_PAGINA);
+  }, [productosFiltrados, currentProductPage, PRODUCTOS_POR_PAGINA]);
+
+  useEffect(() => {
+    setCurrentProductPage(1);
+  }, [selectedCategoryId, productSearch]);
+
+  useEffect(() => {
+    if (currentProductPage > totalProductPages) {
+      setCurrentProductPage(totalProductPages);
+    }
+  }, [currentProductPage, totalProductPages]);
 
   function addToCart(p: ProductoRow) {
     setCart((prev) => {
@@ -407,10 +434,10 @@ export function NewSaleView() {
                 </p>
               ) : (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {productosFiltrados.map((prod) => (
+                  {productosPaginados.map((prod) => (
                     <div
                       key={prod.id}
-                      className="group flex items-center justify-between rounded-2xl border border-stone-100 bg-surface-container-lowest p-5 shadow-sm transition-all hover:shadow-md"
+                      className="group flex items-center justify-between rounded-2xl border border-stone-200 bg-surface-container-lowest p-5 shadow-md shadow-black/10 transition-all hover:shadow-xl hover:shadow-black/20"
                     >
                       <div className="min-w-0 space-y-1">
                         <h3 className="font-bold text-on-surface">
@@ -437,6 +464,31 @@ export function NewSaleView() {
                   ))}
                 </div>
               )}
+              {productosFiltrados.length > PRODUCTOS_POR_PAGINA ? (
+                <div className="mt-4 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentProductPage((p) => Math.max(1, p - 1))}
+                    disabled={currentProductPage === 1}
+                    className="rounded-xl px-4 py-2 text-sm font-medium text-on-surface-variant ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Anterior
+                  </button>
+                  <span className="px-2 text-sm text-on-surface-variant">
+                    Página {currentProductPage} de {totalProductPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentProductPage((p) => Math.min(totalProductPages, p + 1))
+                    }
+                    disabled={currentProductPage === totalProductPages}
+                    className="rounded-xl px-4 py-2 text-sm font-medium text-on-surface-variant ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Siguiente
+                  </button>
+                </div>
+              ) : null}
             </section>
 
             <section className="space-y-4 rounded-[2.5rem] border border-stone-200/50 bg-surface-container-lowest p-6 shadow-sm">
@@ -458,43 +510,47 @@ export function NewSaleView() {
                   {cartLines.map((line) => (
                     <li
                       key={line.id_product}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-100 bg-surface-container-low px-4 py-3"
+                      className="rounded-2xl border border-stone-100 bg-surface-container-low px-4 py-3"
                     >
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold text-on-surface">
+                      <div className="min-w-0">
+                        <p className="truncate font-semibold text-on-surface">
                           {line.nombre}
                         </p>
-                        <p className="text-xs text-on-surface-variant">
-                          {formatMoney(line.precio_actual)} c/u
-                        </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
-                          aria-label="Quitar uno"
-                          onClick={() =>
-                            setLineQty(line.id_product, line.cantidad - 1)
-                          }
-                        >
-                          −
-                        </button>
-                        <span className="min-w-8 text-center font-bold tabular-nums">
-                          {line.cantidad}
-                        </span>
-                        <button
-                          type="button"
-                          className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
-                          aria-label="Agregar uno"
-                          onClick={() =>
-                            setLineQty(line.id_product, line.cantidad + 1)
-                          }
-                        >
-                          +
-                        </button>
-                        <span className="min-w-22 text-right font-bold text-primary">
-                          {formatMoney(line.precio_actual * line.cantidad)}
-                        </span>
+                      <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-200/60 pt-3 sm:mt-2 sm:border-t-0 sm:pt-0">
+                        <div className="min-w-0">
+                          <p className="text-xs text-on-surface-variant">
+                            {formatMoney(line.precio_actual)} c/u
+                          </p>
+                          <p className="font-bold text-primary">
+                            {formatMoney(line.precio_actual * line.cantidad)}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
+                            aria-label="Quitar uno"
+                            onClick={() =>
+                              setLineQty(line.id_product, line.cantidad - 1)
+                            }
+                          >
+                            −
+                          </button>
+                          <span className="min-w-8 text-center font-bold tabular-nums">
+                            {line.cantidad}
+                          </span>
+                          <button
+                            type="button"
+                            className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
+                            aria-label="Agregar uno"
+                            onClick={() =>
+                              setLineQty(line.id_product, line.cantidad + 1)
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
                       </div>
                     </li>
                   ))}

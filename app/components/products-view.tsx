@@ -31,9 +31,7 @@ function searchFold(s: string) {
 type ActiveTab = "productos" | "categorias";
 type ModalKind = "producto" | "categoria";
 
-function categoriaNombreFromJoin(
-  row: { categorias: unknown },
-): string | null {
+function categoriaNombreFromJoin(row: { categorias: unknown }): string | null {
   const c = row.categorias;
   if (c == null) return null;
   if (Array.isArray(c)) {
@@ -52,6 +50,7 @@ function formatPrice(n: number) {
 }
 
 export function ProductsView() {
+  const PRODUCTOS_POR_PAGINA = 5;
   const [idTienda, setIdTienda] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [categoriasList, setCategoriasList] = useState<CategoriaListItem[]>([]);
@@ -60,7 +59,10 @@ export function ProductsView() {
   const [loadingList, setLoadingList] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>("productos");
   const [searchQuery, setSearchQuery] = useState("");
-  const [editingProductoId, setEditingProductoId] = useState<string | null>(null);
+  const [currentProductPage, setCurrentProductPage] = useState(1);
+  const [editingProductoId, setEditingProductoId] = useState<string | null>(
+    null,
+  );
   const [editingCategoriaId, setEditingCategoriaId] = useState<string | null>(
     null,
   );
@@ -119,6 +121,18 @@ export function ProductsView() {
       return searchFold(hay).includes(q);
     });
   }, [categoriasList, searchQuery]);
+
+  const totalProductPages = useMemo(() => {
+    return Math.max(
+      1,
+      Math.ceil(productosFiltrados.length / PRODUCTOS_POR_PAGINA),
+    );
+  }, [productosFiltrados.length, PRODUCTOS_POR_PAGINA]);
+
+  const productosPaginados = useMemo(() => {
+    const start = (currentProductPage - 1) * PRODUCTOS_POR_PAGINA;
+    return productosFiltrados.slice(start, start + PRODUCTOS_POR_PAGINA);
+  }, [productosFiltrados, currentProductPage, PRODUCTOS_POR_PAGINA]);
 
   const loadData = useCallback(async () => {
     const supabase = createClient();
@@ -186,7 +200,7 @@ export function ProductsView() {
           id: c.id,
           nombre: c.nombre,
           id_padre: c.id_padre,
-          parentNombre: c.id_padre ? idToName.get(c.id_padre) ?? null : null,
+          parentNombre: c.id_padre ? (idToName.get(c.id_padre) ?? null) : null,
         })),
       );
       const rows = prods ?? [];
@@ -197,7 +211,9 @@ export function ProductsView() {
           nombre: row.nombre as string,
           descripcion: row.descripcion as string,
           precio_actual: Number(row.precio_actual),
-          categoriaNombre: categoriaNombreFromJoin(row as { categorias: unknown }),
+          categoriaNombre: categoriaNombreFromJoin(
+            row as { categorias: unknown },
+          ),
         })),
       );
     }
@@ -208,10 +224,21 @@ export function ProductsView() {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    setCurrentProductPage(1);
+  }, [searchQuery, activeTab]);
+
+  useEffect(() => {
+    if (currentProductPage > totalProductPages) {
+      setCurrentProductPage(totalProductPages);
+    }
+  }, [currentProductPage, totalProductPages]);
+
   function selectTab(tab: ActiveTab) {
     setActiveTab(tab);
     setModalOpen(false);
     setSearchQuery("");
+    setCurrentProductPage(1);
   }
 
   function openModal() {
@@ -429,7 +456,7 @@ export function ProductsView() {
       : "Agregar nueva categoría";
 
   return (
-    <div className="min-h-screen pb-12">
+    <div className="min-h-screen overflow-x-hidden pb-12">
       <TopAppBar activeHref="/products" />
       <main className="mx-auto max-w-5xl px-6 pt-24">
         <div className="mb-8">
@@ -444,7 +471,9 @@ export function ProductsView() {
         <div className="mb-8 flex flex-col gap-4 md:flex-row">
           <div className="relative grow">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <span className="material-symbols-outlined text-outline">search</span>
+              <span className="material-symbols-outlined text-outline">
+                search
+              </span>
             </div>
             <input
               className="w-full rounded-xl border-none bg-surface-container-low py-3 pr-4 pl-11 transition-all focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/30"
@@ -465,7 +494,9 @@ export function ProductsView() {
               type="button"
               className="flex items-center gap-2 rounded-xl bg-surface-container-high px-5 py-3 font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
             >
-              <span className="material-symbols-outlined text-sm">filter_list</span>
+              <span className="material-symbols-outlined text-sm">
+                filter_list
+              </span>
               Filtrar
             </button>
           </div>
@@ -515,7 +546,8 @@ export function ProductsView() {
           ) : activeTab === "productos" ? (
             productos.length === 0 ? (
               <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
-                No hay productos todavía. Usá el botón + para agregar el primero.
+                No hay productos todavía. Usá el botón + para agregar el
+                primero.
               </p>
             ) : productosFiltrados.length === 0 ? (
               <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
@@ -523,44 +555,48 @@ export function ProductsView() {
                 &quot;.
               </p>
             ) : (
-              productosFiltrados.map((p) => (
+              productosPaginados.map((p) => (
                 <div
                   key={p.id}
-                  className="group flex items-center justify-between rounded-2xl border border-transparent bg-surface-container-lowest p-4 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5"
+                  className="group rounded-2xl border border-primary bg-surface-container-lowest p-3 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5 sm:p-4"
                 >
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-surface-container-high">
+                  <div className="flex items-center gap-3 sm:gap-4">
+                    <div className="hidden h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-surface-container-high sm:flex">
                       <span className="material-symbols-outlined text-3xl text-on-surface-variant">
                         inventory_2
                       </span>
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-on-surface">{p.nombre}</h3>
+                    <div className="min-w-0">
+                      <h3 className="truncate text-base font-bold text-on-surface sm:text-lg">
+                        {p.nombre}
+                      </h3>
                       <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="rounded-md bg-secondary-container px-2 py-0.5 font-label text-xs tracking-widest text-on-secondary-container uppercase">
+                        <span className="rounded-md bg-secondary-container px-2 py-0.5 font-label text-[10px] tracking-widest text-on-secondary-container uppercase sm:text-xs">
                           {p.categoriaNombre ?? "—"}
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-8">
-                    <div className="text-right">
-                      <p className="font-label text-xs tracking-widest text-outline uppercase">
+                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-outline-variant/15 pt-3 sm:mt-0 sm:justify-end sm:gap-6 sm:border-t-0 sm:pt-0">
+                    <div className="min-w-0">
+                      <p className="font-label text-[10px] tracking-widest text-outline uppercase sm:text-xs">
                         Precio
                       </p>
-                      <p className="text-xl font-bold text-primary">
+                      <p className="text-base font-bold text-primary sm:text-xl">
                         {formatPrice(Number(p.precio_actual))}
                       </p>
                     </div>
                     {isAdmin ? (
-                      <div className="flex gap-2">
+                      <div className="flex shrink-0 items-center gap-1 sm:gap-2">
                         <button
                           type="button"
                           onClick={() => openEditProducto(p)}
                           className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-primary-container/20 hover:text-primary"
                           aria-label="Editar"
                         >
-                          <span className="material-symbols-outlined">edit</span>
+                          <span className="material-symbols-outlined">
+                            edit
+                          </span>
                         </button>
                         <button
                           type="button"
@@ -568,7 +604,9 @@ export function ProductsView() {
                           className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-error-container/20 hover:text-error"
                           aria-label="Eliminar"
                         >
-                          <span className="material-symbols-outlined">delete</span>
+                          <span className="material-symbols-outlined">
+                            delete
+                          </span>
                         </button>
                       </div>
                     ) : null}
@@ -589,16 +627,18 @@ export function ProductsView() {
             categoriasFiltradas.map((c) => (
               <div
                 key={c.id}
-                className="group flex items-center justify-between rounded-2xl border border-transparent bg-surface-container-lowest p-4 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5"
+                className="group flex items-center justify-between rounded-2xl border border-primary bg-surface-container-lowest p-4 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5"
               >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-surface-container-high">
+                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                  <div className="hidden h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-surface-container-high sm:flex">
                     <span className="material-symbols-outlined text-3xl text-on-surface-variant">
                       category
                     </span>
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-on-surface">{c.nombre}</h3>
+                  <div className="min-w-0">
+                    <h3 className="truncate text-base font-bold text-on-surface sm:text-lg">
+                      {c.nombre}
+                    </h3>
                     <div className="mt-1 flex flex-wrap items-center gap-2">
                       {c.id_padre && c.parentNombre ? (
                         <span className="rounded-md bg-tertiary-container/80 px-2 py-0.5 font-label text-xs tracking-widest text-on-tertiary-container uppercase">
@@ -613,7 +653,7 @@ export function ProductsView() {
                   </div>
                 </div>
                 {isAdmin ? (
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 gap-1 sm:gap-2">
                     <button
                       type="button"
                       onClick={() => openEditCategoria(c)}
@@ -636,15 +676,43 @@ export function ProductsView() {
             ))
           )}
         </div>
+        {activeTab === "productos" &&
+        productosFiltrados.length > PRODUCTOS_POR_PAGINA ? (
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentProductPage((p) => Math.max(1, p - 1))}
+              disabled={currentProductPage === 1}
+              className="rounded-xl px-4 py-2 font-medium text-on-surface-variant ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Anterior
+            </button>
+            <span className="px-2 text-sm text-on-surface-variant">
+              {currentProductPage} de {totalProductPages}
+            </span>
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentProductPage((p) => Math.min(totalProductPages, p + 1))
+              }
+              disabled={currentProductPage === totalProductPages}
+              className="rounded-xl px-4 py-2 font-medium text-on-surface-variant ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Siguiente
+            </button>
+          </div>
+        ) : null}
       </main>
 
       <button
         type="button"
         onClick={openModal}
-        className="group fixed right-6 bottom-8 z-40 flex h-16 w-16 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary-container text-on-primary shadow-2xl transition-transform duration-150 active:scale-95"
+        className="group fixed right-3 bottom-4 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-linear-to-br from-primary to-primary-container text-on-primary shadow-2xl transition-transform duration-150 active:scale-95 md:right-6 md:bottom-8 md:h-16 md:w-16"
         aria-label={fabLabel}
       >
-        <span className="material-symbols-outlined text-3xl">add</span>
+        <span className="material-symbols-outlined text-2xl md:text-3xl">
+          add
+        </span>
         <div className="pointer-events-none absolute right-full mr-4 rounded-lg bg-inverse-surface px-4 py-2 text-sm whitespace-nowrap text-surface opacity-0 transition-opacity group-hover:opacity-100">
           {fabLabel}
         </div>
@@ -697,7 +765,10 @@ export function ProductsView() {
 
                 <form onSubmit={handleSubmitProducto} className="space-y-4">
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="prod-nombre">
+                    <label
+                      className="text-sm font-medium"
+                      htmlFor="prod-nombre"
+                    >
                       Nombre *
                     </label>
                     <input
@@ -727,7 +798,10 @@ export function ProductsView() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-sm font-medium" htmlFor="prod-precio">
+                    <label
+                      className="text-sm font-medium"
+                      htmlFor="prod-precio"
+                    >
                       Precio *
                     </label>
                     <input
@@ -762,7 +836,8 @@ export function ProductsView() {
                     </select>
                     {categoriasList.length === 0 ? (
                       <p className="text-xs text-on-surface-variant">
-                        Primero creá al menos una categoría en la pestaña Categorías.
+                        Primero creá al menos una categoría en la pestaña
+                        Categorías.
                       </p>
                     ) : null}
                   </div>
@@ -806,7 +881,9 @@ export function ProductsView() {
                       id="add-cat-title"
                       className="font-headline text-2xl font-extrabold text-on-surface"
                     >
-                      {editingCategoriaId ? "Editar categoría" : "Nueva categoría"}
+                      {editingCategoriaId
+                        ? "Editar categoría"
+                        : "Nueva categoría"}
                     </h2>
                     <p className="mt-1 text-sm text-on-surface-variant">
                       {editingCategoriaId
@@ -857,7 +934,10 @@ export function ProductsView() {
 
                   {esSubcategoria ? (
                     <div className="space-y-2">
-                      <label className="text-sm font-medium" htmlFor="cat-padre">
+                      <label
+                        className="text-sm font-medium"
+                        htmlFor="cat-padre"
+                      >
                         Categoría padre *
                       </label>
                       <select
@@ -878,8 +958,8 @@ export function ProductsView() {
                       </select>
                       {categoriasList.length === 0 ? (
                         <p className="text-xs text-on-surface-variant">
-                          Creá primero una categoría principal sin marcar &quot;Es
-                          subcategoría&quot;.
+                          Creá primero una categoría principal sin marcar
+                          &quot;Es subcategoría&quot;.
                         </p>
                       ) : null}
                     </div>
