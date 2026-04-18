@@ -1,6 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -18,7 +19,28 @@ type CartLine = {
   nombre: string;
   precio_actual: number;
   cantidad: number;
+  /** 0–100 */
+  descuento_porcentaje: number;
 };
+
+function clampDescuentoPct(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+function precioUnitarioConDescuento(precioLista: number, descuentoPct: number) {
+  const d = clampDescuentoPct(descuentoPct);
+  return precioLista * (1 - d / 100);
+}
+
+function subtotalLinea(line: CartLine) {
+  return (
+    precioUnitarioConDescuento(
+      line.precio_actual,
+      line.descuento_porcentaje ?? 0,
+    ) * line.cantidad
+  );
+}
 
 /** Categoría virtual: todos los productos de la tienda */
 const ALL_CATEGORY_ID = "__all__";
@@ -79,7 +101,7 @@ export function NewSaleView() {
   );
 
   const cartTotal = useMemo(
-    () => cartLines.reduce((s, l) => s + l.precio_actual * l.cantidad, 0),
+    () => cartLines.reduce((s, l) => s + subtotalLinea(l), 0),
     [cartLines],
   );
 
@@ -157,27 +179,28 @@ export function NewSaleView() {
     void loadInitial();
   }, [loadInitial]);
 
-  const loadProductos = useCallback(
-    async (tid: string) => {
-      const supabase = createClient();
-      if (!supabase) return;
-      setLoadingProducts(true);
-      const q = supabase
-        .from("productos")
-        .select("id, id_categoria, nombre, precio_actual")
-        .eq("id_tienda", tid)
-        .order("nombre");
-      const { data, error } = await q;
-      setLoadingProducts(false);
-      if (error) {
-        setLoadError(error.message);
-        setProductos([]);
-        return;
-      }
-      setProductos((data ?? []) as ProductoRow[]);
-    },
-    [],
-  );
+  useEffect(() => {
+    router.prefetch("/dashboard");
+  }, [router]);
+
+  const loadProductos = useCallback(async (tid: string) => {
+    const supabase = createClient();
+    if (!supabase) return;
+    setLoadingProducts(true);
+    const q = supabase
+      .from("productos")
+      .select("id, id_categoria, nombre, precio_actual")
+      .eq("id_tienda", tid)
+      .order("nombre");
+    const { data, error } = await q;
+    setLoadingProducts(false);
+    if (error) {
+      setLoadError(error.message);
+      setProductos([]);
+      return;
+    }
+    setProductos((data ?? []) as ProductoRow[]);
+  }, []);
 
   useEffect(() => {
     if (!idTienda) {
@@ -201,7 +224,8 @@ export function NewSaleView() {
   }, [productos, productosPorCategoria, productSearch]);
 
   const totalProductPages = useMemo(
-    () => Math.max(1, Math.ceil(productosFiltrados.length / PRODUCTOS_POR_PAGINA)),
+    () =>
+      Math.max(1, Math.ceil(productosFiltrados.length / PRODUCTOS_POR_PAGINA)),
     [productosFiltrados.length, PRODUCTOS_POR_PAGINA],
   );
 
@@ -226,7 +250,11 @@ export function NewSaleView() {
       if (cur) {
         return {
           ...prev,
-          [p.id]: { ...cur, cantidad: cur.cantidad + 1 },
+          [p.id]: {
+            ...cur,
+            cantidad: cur.cantidad + 1,
+            descuento_porcentaje: cur.descuento_porcentaje ?? 0,
+          },
         };
       }
       return {
@@ -236,6 +264,7 @@ export function NewSaleView() {
           nombre: p.nombre,
           precio_actual: Number(p.precio_actual),
           cantidad: 1,
+          descuento_porcentaje: 0,
         },
       };
     });
@@ -254,6 +283,16 @@ export function NewSaleView() {
       const cur = prev[id];
       if (!cur) return prev;
       return { ...prev, [id]: { ...cur, cantidad: qty } };
+    });
+  }
+
+  function setLineDescuento(id: string, raw: string) {
+    const n = raw === "" ? 0 : Number.parseInt(raw, 10);
+    const pct = raw === "" || Number.isNaN(n) ? 0 : clampDescuentoPct(n);
+    setCart((prev) => {
+      const cur = prev[id];
+      if (!cur) return prev;
+      return { ...prev, [id]: { ...cur, descuento_porcentaje: pct } };
     });
   }
 
@@ -282,6 +321,7 @@ export function NewSaleView() {
         id_product: id,
         id_producto: id,
         cantidad: qty,
+        descuento_porcentaje: clampDescuentoPct(l.descuento_porcentaje),
       };
     });
 
@@ -309,17 +349,21 @@ export function NewSaleView() {
     <div className="min-h-screen bg-surface font-body text-on-surface">
       <nav className="fixed top-0 z-50 flex w-full items-center justify-between bg-stone-50/80 px-6 py-4 shadow-sm backdrop-blur-md">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard")}
+          <Link
+            href="/dashboard"
+            prefetch
             className="rounded-full bg-stone-100 p-2 text-primary shadow-sm ring-1 ring-stone-300/90 transition-colors duration-200 hover:bg-stone-200 active:scale-95"
-            aria-label="Volver"
+            aria-label="Volver al panel"
           >
             <span className="material-symbols-outlined">arrow_back</span>
-          </button>
-          <h1 className="font-headline text-xl font-extrabold tracking-tighter text-primary-dim">
+          </Link>
+          <Link
+            href="/dashboard"
+            prefetch
+            className="font-headline text-xl font-extrabold tracking-tighter text-primary-dim"
+          >
             EZSale
-          </h1>
+          </Link>
         </div>
         <div className="flex items-center gap-2">
           <span className="font-label text-[10px] tracking-widest text-stone-500 uppercase">
@@ -468,7 +512,9 @@ export function NewSaleView() {
                 <div className="mt-4 flex items-center justify-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setCurrentProductPage((p) => Math.max(1, p - 1))}
+                    onClick={() =>
+                      setCurrentProductPage((p) => Math.max(1, p - 1))
+                    }
                     disabled={currentProductPage === 1}
                     className="rounded-xl px-4 py-2 text-sm font-medium text-on-surface-variant ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
                   >
@@ -480,7 +526,9 @@ export function NewSaleView() {
                   <button
                     type="button"
                     onClick={() =>
-                      setCurrentProductPage((p) => Math.min(totalProductPages, p + 1))
+                      setCurrentProductPage((p) =>
+                        Math.min(totalProductPages, p + 1),
+                      )
                     }
                     disabled={currentProductPage === totalProductPages}
                     className="rounded-xl px-4 py-2 text-sm font-medium text-on-surface-variant ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
@@ -507,53 +555,106 @@ export function NewSaleView() {
                 </p>
               ) : (
                 <ul className="space-y-3">
-                  {cartLines.map((line) => (
-                    <li
-                      key={line.id_product}
-                      className="rounded-2xl border border-stone-100 bg-surface-container-low px-4 py-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate font-semibold text-on-surface">
-                          {line.nombre}
-                        </p>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3 border-t border-stone-200/60 pt-3 sm:mt-2 sm:border-t-0 sm:pt-0">
-                        <div className="min-w-0">
-                          <p className="text-xs text-on-surface-variant">
-                            {formatMoney(line.precio_actual)} c/u
+                  {cartLines.map((line) => {
+                    const d = clampDescuentoPct(line.descuento_porcentaje ?? 0);
+                    const unitEff = precioUnitarioConDescuento(
+                      line.precio_actual,
+                      d,
+                    );
+                    const sub = subtotalLinea({
+                      ...line,
+                      descuento_porcentaje: d,
+                    });
+                    return (
+                      <li
+                        key={line.id_product}
+                        className="rounded-2xl border border-stone-100 bg-surface-container-low px-4 py-3"
+                      >
+                        <div className="min-w-0 flex justify-between">
+                          <p className="truncate font-semibold text-on-surface">
+                            {line.nombre}
                           </p>
-                          <p className="font-bold text-primary">
-                            {formatMoney(line.precio_actual * line.cantidad)}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <label
+                              className="whitespace-nowrap text-[11px] font-medium text-on-surface-variant"
+                              htmlFor={`desc-${line.id_product}`}
+                            >
+                              Desc. %
+                            </label>
+                            <input
+                              id={`desc-${line.id_product}`}
+                              type="number"
+                              inputMode="numeric"
+                              min={0}
+                              max={100}
+                              step={1}
+                              value={d}
+                              onChange={(e) =>
+                                setLineDescuento(
+                                  line.id_product,
+                                  e.target.value,
+                                )
+                              }
+                              className="w-14 rounded-lg border-none bg-surface-container-high px-2 py-1.5 text-center text-sm font-semibold tabular-nums text-on-surface outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/35"
+                              aria-label={`Descuento porcentual para ${line.nombre}`}
+                            />
+                          </div>
                         </div>
-                        <div className="flex shrink-0 items-center gap-2">
-                          <button
-                            type="button"
-                            className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
-                            aria-label="Quitar uno"
-                            onClick={() =>
-                              setLineQty(line.id_product, line.cantidad - 1)
-                            }
-                          >
-                            −
-                          </button>
-                          <span className="min-w-8 text-center font-bold tabular-nums">
-                            {line.cantidad}
-                          </span>
-                          <button
-                            type="button"
-                            className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
-                            aria-label="Agregar uno"
-                            onClick={() =>
-                              setLineQty(line.id_product, line.cantidad + 1)
-                            }
-                          >
-                            +
-                          </button>
+                        <div className="mt-3 flex items-start justify-between gap-3 border-t border-stone-200/60 pt-3 sm:mt-2 sm:border-t-0 sm:pt-0">
+                          <div className="min-w-0 flex-1 pr-1">
+                            <p className="text-xs text-on-surface-variant">
+                              {d > 0 ? (
+                                <>
+                                  <span className="line-through opacity-70">
+                                    {formatMoney(line.precio_actual)}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="font-medium text-on-surface">
+                                  {formatMoney(unitEff)} c/u
+                                </span>
+                              )}
+                              {d > 0 ? (
+                                <span className="ml-1.5 font-semibold text-primary">
+                                  −{d}%
+                                </span>
+                              ) : null}
+                            </p>
+                            <p className="mt-0.5 font-bold text-primary">
+                              {formatMoney(sub)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 flex-col items-end gap-2">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
+                                aria-label="Quitar uno"
+                                onClick={() =>
+                                  setLineQty(line.id_product, line.cantidad - 1)
+                                }
+                              >
+                                −
+                              </button>
+                              <span className="min-w-8 text-center font-bold tabular-nums">
+                                {line.cantidad}
+                              </span>
+                              <button
+                                type="button"
+                                className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
+                                aria-label="Agregar uno"
+                                onClick={() =>
+                                  setLineQty(line.id_product, line.cantidad + 1)
+                                }
+                              >
+                                +
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               <div className="flex items-center justify-between border-t border-stone-200/60 pt-4">

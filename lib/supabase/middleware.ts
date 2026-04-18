@@ -55,13 +55,15 @@ export async function updateSession(request: NextRequest) {
   }
 
   let debeCambiarPassword = false;
+  let esAdmin = false;
   if (user) {
-    const { data: perfilPw } = await supabase
+    const { data: perfil } = await supabase
       .from("perfiles")
-      .select("debe_cambiar_password")
+      .select("debe_cambiar_password, rol")
       .eq("id", user.id)
       .maybeSingle();
-    debeCambiarPassword = perfilPw?.debe_cambiar_password === true;
+    debeCambiarPassword = perfil?.debe_cambiar_password === true;
+    esAdmin = perfil?.rol === "admin";
   }
 
   if (debeCambiarPassword) {
@@ -73,6 +75,17 @@ export async function updateSession(request: NextRequest) {
       return NextResponse.redirect(u);
     }
   } else if (path.startsWith("/auth/cambiar-password") && user) {
+    const u = request.nextUrl.clone();
+    u.pathname = "/dashboard";
+    return NextResponse.redirect(u);
+  }
+
+  if (
+    user &&
+    !debeCambiarPassword &&
+    !esAdmin &&
+    (path.startsWith("/reports") || path.startsWith("/team"))
+  ) {
     const u = request.nextUrl.clone();
     u.pathname = "/dashboard";
     return NextResponse.redirect(u);

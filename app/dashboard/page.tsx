@@ -1,5 +1,5 @@
 import { DashboardView } from "@/app/components/dashboard-view";
-import { createClient } from "@/lib/supabase/server";
+import { getPerfilTienda } from "@/lib/supabase/cached-session";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 
@@ -22,80 +22,114 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
   const weekStart = new Date(Date.UTC(y, mo, d - 6, 0, 0, 0));
   const weekEnd = todayEnd;
 
-  const { data: ventasHoyRows, error: eHoy } = await supabase
-    .from("ventas")
-    .select("id, id_usuario, monto_total, fecha_venta")
-    .eq("id_tienda", idTienda)
-    .gte("fecha_venta", todayStart.toISOString())
-    .lt("fecha_venta", todayEnd.toISOString())
-    .order("fecha_venta", { ascending: false });
+  const [hoyRes, semRes, bestRes] = await Promise.all([
+    supabase
+      .from("ventas")
+      .select("id, id_usuario, monto_total, fecha_venta")
+      .eq("id_tienda", idTienda)
+      .gte("fecha_venta", todayStart.toISOString())
+      .lt("fecha_venta", todayEnd.toISOString())
+      .order("fecha_venta", { ascending: false }),
+    supabase
+      .from("ventas")
+      .select("monto_total, fecha_venta")
+      .eq("id_tienda", idTienda)
+      .gte("fecha_venta", weekStart.toISOString())
+      .lt("fecha_venta", weekEnd.toISOString()),
+    supabase.rpc("top_productos_por_tienda", {
+      p_id_tienda: idTienda,
+      p_limit: 3,
+    }),
+  ]);
 
-  if (eHoy) {
-    return { error: eHoy.message } as const;
+  if (hoyRes.error) {
+    return { error: hoyRes.error.message } as const;
+  }
+  if (semRes.error) {
+    return { error: semRes.error.message } as const;
+  }
+  if (bestRes.error) {
+    return { error: bestRes.error.message } as const;
   }
 
-  const rowsHoy = ventasHoyRows ?? [];
-  const totalHoy = rowsHoy.reduce((s, v) => s + Number(v.monto_total), 0);
-  const cantidadVentasHoy = rowsHoy.length;
+  const rowsHoyAll = hoyRes.data ?? [];
+  const totalHoy = rowsHoyAll.reduce((s, v) => s + Number(v.monto_total), 0);
+  const cantidadVentasHoy = rowsHoyAll.length;
 
-  const uids = [...new Set(rowsHoy.map((v) => v.id_usuario))];
+  const rowsHoyLista = rowsHoyAll.slice(0, 5);
+  const uids = [...new Set(rowsHoyLista.map((v) => v.id_usuario))];
+  const vidsLista = rowsHoyLista.map((v) => v.id as string);
+
   const nameByUser = new Map<string, string>();
-  if (uids.length > 0) {
-    const { data: perfiles, error: pe } = await supabase
-      .from("perfiles")
-      .select("id, nombre, apellido")
-      .in("id", uids);
-    if (!pe && perfiles) {
-      for (const p of perfiles) {
-        const nombre = `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim() || "Usuario";
-        nameByUser.set(p.id, nombre);
+  const lineasPorVenta = new Map<string, { nombre: string; cantidad: number }[]>();
+
+  if (uids.length > 0 || vidsLista.length > 0) {
+    const [perfilesRes, detsRes] = await Promise.all([
+      uids.length > 0
+        ? supabase.from("perfiles").select("id, nombre, apellido").in("id", uids)
+        : Promise.resolve({ data: [] as const, error: null }),
+      vidsLista.length > 0
+        ? supabase
+            .from("detalle_ventas")
+            .select("id_venta, cantidad, productos ( nombre )")
+            .in("id_venta", vidsLista)
+            .order("id")
+        : Promise.resolve({ data: [] as const, error: null }),
+    ]);
+
+    if (perfilesRes.error) {
+      return { error: perfilesRes.error.message } as const;
+    }
+    if (detsRes.error) {
+      return { error: detsRes.error.message } as const;
+    }
+
+    for (const p of perfilesRes.data ?? []) {
+      const nombre = `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim() || "Usuario";
+      nameByUser.set(p.id, nombre);
+    }
+
+    function nombreProducto(row: { productos: unknown }): string {
+      const pr = row.productos;
+      if (pr == null) return "Producto";
+      if (Array.isArray(pr)) {
+        const first = pr[0] as { nombre?: string } | undefined;
+        return first?.nombre ?? "Producto";
       }
+      return (pr as { nombre: string }).nombre;
+    }
+
+    for (const row of detsRes.data ?? []) {
+      const vid = row.id_venta as string;
+      const nombre = nombreProducto(row as { productos: unknown });
+      const cantidad = Number(row.cantidad);
+      const list = lineasPorVenta.get(vid) ?? [];
+      list.push({ nombre, cantidad });
+      lineasPorVenta.set(vid, list);
     }
   }
 
-  const vidsHoy = rowsHoy.map((v) => v.id);
-  const itemsByVenta = new Map<string, number>();
-  if (vidsHoy.length > 0) {
-    const { data: dets, error: de } = await supabase
-      .from("detalle_ventas")
-      .select("id_venta, cantidad")
-      .in("id_venta", vidsHoy);
-    if (!de && dets) {
-      for (const row of dets) {
-        const vid = row.id_venta as string;
-        itemsByVenta.set(vid, (itemsByVenta.get(vid) ?? 0) + Number(row.cantidad));
-      }
-    }
-  }
-
-  const ventasHoy = rowsHoy.map((v) => {
+  const ventasHoy = rowsHoyLista.map((v) => {
+    const id = v.id as string;
     const fv = new Date(v.fecha_venta as string);
     const hora = fv.toLocaleTimeString("es-AR", {
       hour: "2-digit",
       minute: "2-digit",
     });
+    const lineas = lineasPorVenta.get(id) ?? [];
+    const items = lineas.reduce((s, l) => s + l.cantidad, 0);
     return {
-      id: v.id as string,
+      id,
       vendedor: nameByUser.get(v.id_usuario as string) ?? "Usuario",
       hora,
       monto: Number(v.monto_total),
-      items: itemsByVenta.get(v.id as string) ?? 0,
+      items,
+      lineas,
     };
   });
 
-  const { data: ventasSemanaRows, error: eSem } = await supabase
-    .from("ventas")
-    .select("monto_total, fecha_venta")
-    .eq("id_tienda", idTienda)
-    .gte("fecha_venta", weekStart.toISOString())
-    .lt("fecha_venta", weekEnd.toISOString());
-
-  if (eSem) {
-    return { error: eSem.message } as const;
-  }
-
   const montoPorDia = new Map<string, number>();
-  for (const row of ventasSemanaRows ?? []) {
+  for (const row of semRes.data ?? []) {
     const key = utcYmd(new Date(row.fecha_venta as string));
     montoPorDia.set(key, (montoPorDia.get(key) ?? 0) + Number(row.monto_total));
   }
@@ -116,62 +150,12 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
 
   const totalSemana = diasSemana.reduce((s, x) => s + x.monto, 0);
 
-  const { data: todasVentasIds, error: eVid } = await supabase
-    .from("ventas")
-    .select("id")
-    .eq("id_tienda", idTienda);
-
-  if (eVid) {
-    return { error: eVid.message } as const;
-  }
-
-  const allVids = (todasVentasIds ?? []).map((v) => v.id as string);
-  const bestsellers: { nombre: string; unidades: number }[] = [];
-
-  if (allVids.length > 0) {
-    const { data: detsAll, error: eDet } = await supabase
-      .from("detalle_ventas")
-      .select("id_product, cantidad")
-      .in("id_venta", allVids);
-
-    if (eDet) {
-      return { error: eDet.message } as const;
-    }
-
-    const unidadesPorProducto = new Map<string, number>();
-    for (const row of detsAll ?? []) {
-      const pid = row.id_product as string;
-      unidadesPorProducto.set(
-        pid,
-        (unidadesPorProducto.get(pid) ?? 0) + Number(row.cantidad),
-      );
-    }
-
-    const top = [...unidadesPorProducto.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
-
-    if (top.length > 0) {
-      const ids = top.map(([id]) => id);
-      const { data: prods, error: ePr } = await supabase
-        .from("productos")
-        .select("id, nombre")
-        .in("id", ids)
-        .eq("id_tienda", idTienda);
-
-      if (ePr) {
-        return { error: ePr.message } as const;
-      }
-
-      const nombrePorId = new Map((prods ?? []).map((p) => [p.id as string, p.nombre as string]));
-      for (const [pid, u] of top) {
-        bestsellers.push({
-          nombre: nombrePorId.get(pid) ?? "Producto",
-          unidades: u,
-        });
-      }
-    }
-  }
+  const bestsellers = (bestRes.data ?? []).map(
+    (row: { nombre: string; unidades: string | number }) => ({
+      nombre: row.nombre,
+      unidades: Number(row.unidades),
+    }),
+  );
 
   return {
     totalHoy,
@@ -184,39 +168,28 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
 }
 
 export default async function DashboardPage() {
-  const supabase = await createClient();
+  const { supabase, user, perfil } = await getPerfilTienda();
+
   if (!supabase) {
     redirect("/");
   }
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   if (!user) {
     redirect("/");
   }
-
-  const { data: perfil } = await supabase
-    .from("perfiles")
-    .select("id_tienda")
-    .eq("id", user.id)
-    .maybeSingle();
-
   if (!perfil?.id_tienda) {
     redirect("/registro/completar");
   }
 
-  const idTienda = perfil.id_tienda as string;
+  const idTienda = perfil.id_tienda;
+  const esAdmin = perfil.rol === "admin";
 
-  const { data: tienda } = await supabase
-    .from("tiendas")
-    .select("nombre")
-    .eq("id", idTienda)
-    .maybeSingle();
-  const tiendaNombre = tienda?.nombre ?? null;
+  const [data, tiendaRes] = await Promise.all([
+    loadDashboardData(supabase, idTienda),
+    supabase.from("tiendas").select("nombre").eq("id", idTienda).maybeSingle(),
+  ]);
 
-  const data = await loadDashboardData(supabase, idTienda);
+  const tiendaNombre = tiendaRes.data?.nombre ?? null;
+
   if ("error" in data) {
     return (
       <div className="mx-auto max-w-6xl px-6 pt-28">
@@ -230,6 +203,7 @@ export default async function DashboardPage() {
   return (
     <DashboardView
       tiendaNombre={tiendaNombre}
+      esAdmin={esAdmin}
       totalHoy={data.totalHoy}
       cantidadVentasHoy={data.cantidadVentasHoy}
       ventasHoy={data.ventasHoy}

@@ -59,6 +59,11 @@ export function ProductsView() {
   const [loadingList, setLoadingList] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>("productos");
   const [searchQuery, setSearchQuery] = useState("");
+  /** Solo productos: filtro por categoría (null = todas). */
+  const [filterCategoriaId, setFilterCategoriaId] = useState<string | null>(
+    null,
+  );
+  const [filtersPanelOpen, setFiltersPanelOpen] = useState(false);
   const [currentProductPage, setCurrentProductPage] = useState(1);
   const [editingProductoId, setEditingProductoId] = useState<string | null>(
     null,
@@ -105,22 +110,22 @@ export function ProductsView() {
     modalKind === "producto" ? canSubmitProducto : canSubmitCategoria;
 
   const productosFiltrados = useMemo(() => {
+    let list = productos;
+    if (filterCategoriaId) {
+      list = list.filter((p) => p.id_categoria === filterCategoriaId);
+    }
     const q = searchFold(searchQuery.trim());
-    if (!q) return productos;
-    return productos.filter((p) => {
+    if (!q) return list;
+    return list.filter((p) => {
       const hay = `${p.nombre} ${p.descripcion} ${p.categoriaNombre ?? ""}`;
       return searchFold(hay).includes(q);
     });
-  }, [productos, searchQuery]);
+  }, [productos, searchQuery, filterCategoriaId]);
 
-  const categoriasFiltradas = useMemo(() => {
-    const q = searchFold(searchQuery.trim());
-    if (!q) return categoriasList;
-    return categoriasList.filter((c) => {
-      const hay = `${c.nombre} ${c.parentNombre ?? ""}`;
-      return searchFold(hay).includes(q);
-    });
-  }, [categoriasList, searchQuery]);
+  const nombreFiltroCategoria = useMemo(() => {
+    if (!filterCategoriaId) return null;
+    return categoriasList.find((c) => c.id === filterCategoriaId)?.nombre ?? null;
+  }, [categoriasList, filterCategoriaId]);
 
   const totalProductPages = useMemo(() => {
     return Math.max(
@@ -226,7 +231,7 @@ export function ProductsView() {
 
   useEffect(() => {
     setCurrentProductPage(1);
-  }, [searchQuery, activeTab]);
+  }, [searchQuery, activeTab, filterCategoriaId]);
 
   useEffect(() => {
     if (currentProductPage > totalProductPages) {
@@ -238,6 +243,19 @@ export function ProductsView() {
     setActiveTab(tab);
     setModalOpen(false);
     setSearchQuery("");
+    setCurrentProductPage(1);
+    setFiltersPanelOpen(false);
+    if (tab === "categorias") {
+      setFilterCategoriaId(null);
+    }
+  }
+
+  function goToProductosConCategoria(categoriaId: string) {
+    setActiveTab("productos");
+    setModalOpen(false);
+    setSearchQuery("");
+    setFilterCategoriaId(categoriaId);
+    setFiltersPanelOpen(false);
     setCurrentProductPage(1);
   }
 
@@ -469,38 +487,97 @@ export function ProductsView() {
         </div>
 
         <div className="mb-8 flex flex-col gap-4 md:flex-row">
-          <div className="relative grow">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <span className="material-symbols-outlined text-outline">
-                search
-              </span>
-            </div>
-            <input
-              className="w-full rounded-xl border-none bg-surface-container-low py-3 pr-4 pl-11 transition-all focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/30"
-              placeholder={
-                activeTab === "productos"
-                  ? "Buscar por nombre o descripción..."
-                  : "Buscar categoría por nombre..."
-              }
-              type="search"
-              name="q"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              autoComplete="off"
-            />
-          </div>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className="flex items-center gap-2 rounded-xl bg-surface-container-high px-5 py-3 font-medium text-on-surface transition-colors hover:bg-surface-container-highest"
-            >
-              <span className="material-symbols-outlined text-sm">
-                filter_list
-              </span>
-              Filtrar
-            </button>
-          </div>
+          {activeTab === "productos" ? (
+            <>
+              <div className="relative grow">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                  <span className="material-symbols-outlined text-outline">
+                    search
+                  </span>
+                </div>
+                <input
+                  className="w-full rounded-xl border-none bg-surface-container-low py-3 pr-4 pl-11 transition-all focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/30"
+                  placeholder="Buscar por nombre o descripción..."
+                  type="search"
+                  name="q"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFiltersPanelOpen((o) => !o)}
+                  className={`flex items-center gap-2 rounded-xl px-5 py-3 font-medium transition-colors ${
+                    filterCategoriaId
+                      ? "bg-primary-container text-on-primary-container ring-2 ring-primary/25"
+                      : "bg-surface-container-high text-on-surface hover:bg-surface-container-highest"
+                  }`}
+                  aria-expanded={filtersPanelOpen}
+                  aria-controls="panel-filtros-categoria"
+                >
+                  <span className="material-symbols-outlined text-sm">
+                    filter_list
+                  </span>
+                  {filterCategoriaId && nombreFiltroCategoria
+                    ? nombreFiltroCategoria
+                    : "Filtrar"}
+                </button>
+              </div>
+            </>
+          ) : (
+            <p className="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low/60 px-4 py-3 text-sm text-on-surface-variant">
+              Tocá una categoría para abrir la pestaña Productos filtrada por esa
+              categoría. La lista de categorías no se filtra por texto.
+            </p>
+          )}
         </div>
+
+        {activeTab === "productos" && filtersPanelOpen ? (
+          <div
+            id="panel-filtros-categoria"
+            className="mb-6 rounded-2xl border border-outline-variant/20 bg-surface-container-low/80 p-4 shadow-sm"
+          >
+            <p className="mb-3 font-label text-[11px] font-bold tracking-widest text-stone-500 uppercase">
+              Categoría
+            </p>
+            <label className="sr-only" htmlFor="filtro-categoria-select">
+              Filtrar productos por categoría
+            </label>
+            <select
+              id="filtro-categoria-select"
+              className="w-full rounded-xl border-none bg-surface-container-lowest py-3 pr-4 pl-4 text-on-surface outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/35"
+              value={filterCategoriaId ?? ""}
+              onChange={(e) => {
+                const v = e.target.value;
+                setFilterCategoriaId(v === "" ? null : v);
+                setCurrentProductPage(1);
+              }}
+            >
+              <option value="">Todas las categorías</option>
+              {categoriasList.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.id_padre && c.parentNombre
+                    ? `${c.nombre} · ${c.parentNombre}`
+                    : c.nombre}
+                </option>
+              ))}
+            </select>
+            {filterCategoriaId ? (
+              <button
+                type="button"
+                className="mt-3 text-sm font-medium text-primary underline-offset-2 hover:underline"
+                onClick={() => {
+                  setFilterCategoriaId(null);
+                  setCurrentProductPage(1);
+                }}
+              >
+                Quitar filtro de categoría
+              </button>
+            ) : null}
+          </div>
+        ) : null}
 
         <div className="mb-8 flex gap-8 border-b border-outline-variant/15">
           <button
@@ -551,8 +628,25 @@ export function ProductsView() {
               </p>
             ) : productosFiltrados.length === 0 ? (
               <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
-                No hay productos que coincidan con &quot;{searchQuery.trim()}
-                &quot;.
+                {filterCategoriaId ? (
+                  searchQuery.trim() ? (
+                    <>
+                      No hay productos en &quot;
+                      {nombreFiltroCategoria ?? "esta categoría"}&quot; que
+                      coincidan con &quot;{searchQuery.trim()}&quot;.
+                    </>
+                  ) : (
+                    <>
+                      No hay productos en la categoría &quot;
+                      {nombreFiltroCategoria ?? "seleccionada"}&quot;.
+                    </>
+                  )
+                ) : (
+                  <>
+                    No hay productos que coincidan con &quot;
+                    {searchQuery.trim()}&quot;.
+                  </>
+                )}
               </p>
             ) : (
               productosPaginados.map((p) => (
@@ -618,24 +712,23 @@ export function ProductsView() {
             <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
               No hay categorías todavía. Usá el botón + para crear la primera.
             </p>
-          ) : categoriasFiltradas.length === 0 ? (
-            <p className="rounded-2xl border border-outline-variant/20 bg-surface-container-low/50 px-6 py-10 text-center text-on-surface-variant">
-              No hay categorías que coincidan con &quot;{searchQuery.trim()}
-              &quot;.
-            </p>
           ) : (
-            categoriasFiltradas.map((c) => (
+            categoriasList.map((c) => (
               <div
                 key={c.id}
-                className="group flex items-center justify-between rounded-2xl border border-primary bg-surface-container-lowest p-4 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5"
+                className="group flex items-stretch justify-between gap-2 rounded-2xl border border-primary bg-surface-container-lowest p-3 transition-all duration-300 hover:border-surface-container-high hover:bg-white hover:shadow-xl hover:shadow-on-surface/5 sm:p-4"
               >
-                <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-                  <div className="hidden h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-surface-container-high sm:flex">
+                <button
+                  type="button"
+                  onClick={() => goToProductosConCategoria(c.id)}
+                  className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-primary/40 sm:gap-4"
+                >
+                  <div className="hidden h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-container-high sm:flex">
                     <span className="material-symbols-outlined text-3xl text-on-surface-variant">
                       category
                     </span>
                   </div>
-                  <div className="min-w-0">
+                  <div className="min-w-0 py-0.5">
                     <h3 className="truncate text-base font-bold text-on-surface sm:text-lg">
                       {c.nombre}
                     </h3>
@@ -650,13 +743,19 @@ export function ProductsView() {
                         </span>
                       )}
                     </div>
+                    <p className="mt-2 font-label text-[10px] text-primary sm:text-xs">
+                      Ver productos de esta categoría
+                    </p>
                   </div>
-                </div>
+                </button>
                 {isAdmin ? (
-                  <div className="flex shrink-0 gap-1 sm:gap-2">
+                  <div className="flex shrink-0 items-start gap-1 pt-1 sm:gap-2">
                     <button
                       type="button"
-                      onClick={() => openEditCategoria(c)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditCategoria(c);
+                      }}
                       className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-primary-container/20 hover:text-primary"
                       aria-label="Editar"
                     >
@@ -664,7 +763,10 @@ export function ProductsView() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void handleDeleteCategoria(c)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleDeleteCategoria(c);
+                      }}
                       className="rounded-lg p-2 text-on-surface-variant transition-all hover:bg-error-container/20 hover:text-error"
                       aria-label="Eliminar"
                     >

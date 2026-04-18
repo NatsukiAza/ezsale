@@ -15,6 +15,7 @@ type DetalleVentaRow = {
   cantidad: number;
   subtotal: number | string;
   precio_unitario_historico: number | string;
+  descuento_porcentaje?: number | string | null;
   productos: { nombre: string } | { nombre: string }[] | null;
 };
 
@@ -238,6 +239,7 @@ export function ReportsView({ activeHref = "/reports" }: ReportsViewProps) {
           cantidad,
           subtotal,
           precio_unitario_historico,
+          descuento_porcentaje,
           productos ( nombre )
         )
       `,
@@ -611,6 +613,11 @@ export function ReportsView({ activeHref = "/reports" }: ReportsViewProps) {
                             <span className="text-sm text-on-surface-variant">
                               Cant. {d.cantidad} ×{" "}
                               {formatMoney(Number(d.precio_unitario_historico))}
+                              {Number(d.descuento_porcentaje ?? 0) > 0 ? (
+                                <span className="ml-1 font-semibold text-primary">
+                                  (−{Number(d.descuento_porcentaje)}%)
+                                </span>
+                              ) : null}
                             </span>
                             <span className="ml-auto font-semibold tabular-nums text-on-surface">
                               {formatMoney(Number(d.subtotal))}

@@ -1,12 +1,19 @@
 import Link from "next/link";
 import { TopAppBar } from "./top-app-bar";
 
+export type VentaHoyLinea = {
+  nombre: string;
+  cantidad: number;
+};
+
 export type VentaHoyItem = {
   id: string;
   vendedor: string;
   hora: string;
   monto: number;
+  /** Total de unidades en la venta (suma de cantidades). */
   items: number;
+  lineas: VentaHoyLinea[];
 };
 
 export type DiaSemanaItem = {
@@ -23,6 +30,8 @@ export type BestsellerItem = {
 
 type DashboardViewProps = {
   tiendaNombre?: string | null;
+  /** Si false (rol normal), no se muestran enlaces a reportes. */
+  esAdmin?: boolean;
   totalHoy: number;
   cantidadVentasHoy: number;
   ventasHoy: VentaHoyItem[];
@@ -42,6 +51,7 @@ function formatArs(n: number) {
 
 export function DashboardView({
   tiendaNombre,
+  esAdmin = true,
   totalHoy,
   cantidadVentasHoy,
   ventasHoy,
@@ -58,7 +68,9 @@ export function DashboardView({
       {tiendaNombre ? (
         <div className="border-b border-stone-200/60 bg-secondary-container/30 px-6 py-2 text-center text-sm font-medium text-on-secondary-container">
           Panel de{" "}
-          <span className="font-headline font-bold text-secondary">{tiendaNombre}</span>
+          <span className="font-headline font-bold text-secondary">
+            {tiendaNombre}
+          </span>
         </div>
       ) : null}
       <main className="mx-auto max-w-6xl space-y-10 px-6 pt-24">
@@ -73,7 +85,9 @@ export function DashboardView({
                 {formatArs(totalHoy)}
               </h1>
               <div className="flex items-center gap-2 text-sm font-medium text-secondary-container">
-                <span className="material-symbols-outlined text-sm">receipt_long</span>
+                <span className="material-symbols-outlined text-sm">
+                  receipt_long
+                </span>
                 <span>
                   {cantidadVentasHoy === 1
                     ? "1 venta hoy"
@@ -93,14 +107,25 @@ export function DashboardView({
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
           <div className="space-y-6 lg:col-span-1">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-bold tracking-tight">Ventas de hoy</h2>
-              <Link
-                href="/reports"
-                className="text-sm font-semibold text-primary hover:underline"
-              >
-                Ver todas
-              </Link>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Ventas de hoy
+                </h2>
+                {cantidadVentasHoy > 5 ? (
+                  <p className="mt-0.5 text-xs text-on-surface-variant">
+                    Últimas 5 ventas · {cantidadVentasHoy} en total hoy
+                  </p>
+                ) : null}
+              </div>
+              {esAdmin ? (
+                <Link
+                  href="/reports"
+                  className="shrink-0 text-sm font-semibold text-primary hover:underline"
+                >
+                  Ver todas
+                </Link>
+              ) : null}
             </div>
             <div className="space-y-3">
               {ventasHoy.length === 0 ? (
@@ -111,19 +136,48 @@ export function DashboardView({
                 ventasHoy.map((v) => (
                   <div
                     key={v.id}
-                    className="group flex flex-col gap-3 rounded-2xl border border-stone-100 bg-surface-container-lowest p-4 transition-colors duration-200 hover:bg-surface-container-low sm:flex-row sm:items-center sm:justify-between"
+                    className="shadow-xl group rounded-2xl border border-stone-100 bg-surface-container-lowest p-4 transition-colors duration-200 hover:bg-surface-container-low"
                   >
-                    <div className="min-w-0">
-                      <p className="font-bold text-on-surface">{v.vendedor}</p>
-                      <p className="text-xs text-on-surface-variant">{v.hora}</p>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 sm:text-right">
-                      <span className="text-sm tabular-nums text-on-surface-variant">
-                        {v.items} ítems
-                      </span>
-                      <span className="font-bold tabular-nums text-primary">
-                        {formatArs(v.monto)}
-                      </span>
+                    {v.lineas.length > 0 ? (
+                      <ul className="space-y-2">
+                        {v.lineas.map((line, idx) => (
+                          <li
+                            key={`${v.id}-${idx}`}
+                            className="flex items-baseline justify-between gap-3 text-base font-semibold leading-snug text-on-surface sm:text-lg"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="tabular-nums text-primary">
+                                {line.cantidad}
+                              </span>
+                              <span className="text-on-surface-variant">
+                                {" "}
+                                ×{" "}
+                              </span>
+                              <span>{line.nombre}</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-sm text-on-surface-variant">
+                        Sin detalle de productos.
+                      </p>
+                    )}
+                    <div className="mt-4 flex flex-col gap-3 border-t border-stone-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs text-on-surface-variant">
+                          {v.vendedor}
+                        </p>
+                        <p className="text-[11px] text-outline">{v.hora}</p>
+                      </div>
+                      <div className="flex shrink-0 items-baseline justify-between gap-4 sm:justify-end sm:text-right">
+                        <span className="text-xs tabular-nums text-on-surface-variant">
+                          {v.items} ítems
+                        </span>
+                        <span className="text-lg font-bold tabular-nums text-primary sm:text-xl">
+                          {formatArs(v.monto)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))
@@ -134,18 +188,24 @@ export function DashboardView({
           <div className="space-y-6 lg:col-span-2">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h2 className="text-xl font-bold tracking-tight">Ventas de la semana</h2>
+                <h2 className="text-xl font-bold tracking-tight">
+                  Ventas de la semana
+                </h2>
                 <p className="mt-1 text-sm text-on-surface-variant">
                   Total:{" "}
-                  <span className="font-semibold text-on-surface">{formatArs(totalSemana)}</span>
+                  <span className="font-semibold text-on-surface">
+                    {formatArs(totalSemana)}
+                  </span>
                 </p>
               </div>
-              <Link
-                href="/reports"
-                className="text-sm font-semibold text-primary hover:underline"
-              >
-                Ver más
-              </Link>
+              {esAdmin ? (
+                <Link
+                  href="/reports"
+                  className="text-sm font-semibold text-primary hover:underline"
+                >
+                  Ver más
+                </Link>
+              ) : null}
             </div>
             <div className="flex aspect-video items-end justify-between gap-2 rounded-4xl border border-stone-100 bg-surface-container-lowest p-6 md:gap-3 lg:aspect-auto lg:h-[320px] lg:p-8">
               {diasSemana.map((item) => {
@@ -154,7 +214,10 @@ export function DashboardView({
                     ? Math.max(10, (item.monto / maxSemana) * barMaxPx)
                     : 6;
                 return (
-                  <div key={item.dateKey} className="flex min-w-0 flex-1 flex-col items-center gap-3">
+                  <div
+                    key={item.dateKey}
+                    className="flex min-w-0 flex-1 flex-col items-center gap-3"
+                  >
                     <div
                       style={{ height: `${hPx}px` }}
                       className={`group relative w-full rounded-t-xl transition-colors hover:bg-primary-dim ${
@@ -188,9 +251,13 @@ export function DashboardView({
               </span>
             </div>
             <div className="mt-4 space-y-3">
-              <h3 className="font-headline text-lg font-bold">Top 3 productos</h3>
+              <h3 className="font-headline text-lg font-bold">
+                Top 3 productos
+              </h3>
               {bestsellers.length === 0 ? (
-                <p className="text-sm opacity-80">Todavía no hay datos de ventas.</p>
+                <p className="text-sm opacity-80">
+                  Todavía no hay datos de ventas.
+                </p>
               ) : (
                 <ol className="space-y-3">
                   {bestsellers.map((b, i) => (
@@ -202,7 +269,9 @@ export function DashboardView({
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-on-tertiary-container/15 text-sm font-bold">
                           {i + 1}
                         </span>
-                        <span className="truncate font-semibold">{b.nombre}</span>
+                        <span className="truncate font-semibold">
+                          {b.nombre}
+                        </span>
                       </div>
                       <span className="shrink-0 text-sm opacity-90">
                         {b.unidades} u.

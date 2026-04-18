@@ -5,12 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import { SignOutButton } from "@/app/components/sign-out-button";
 import { useEffect, useState } from "react";
 
-const nav = [
-  { href: "/dashboard", label: "Panel" },
-  { href: "/products", label: "Productos" },
-  { href: "/reports", label: "Reportes" },
-  { href: "/team", label: "Equipo" },
-];
+const navItems = [
+  { href: "/new-sale", label: "Nueva Venta", adminOnly: false },
+  { href: "/dashboard", label: "Panel", adminOnly: false },
+  { href: "/products", label: "Productos", adminOnly: false },
+  { href: "/reports", label: "Reportes", adminOnly: true },
+  { href: "/team", label: "Equipo", adminOnly: true },
+] as const;
 
 type TopAppBarProps = {
   title?: string;
@@ -23,12 +24,14 @@ export function TopAppBar({
 }: TopAppBarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [displayName, setDisplayName] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     async function loadName() {
       const supabase = createClient();
       if (!supabase) {
         setDisplayName(null);
+        setIsAdmin(false);
         return;
       }
       const {
@@ -36,13 +39,15 @@ export function TopAppBar({
       } = await supabase.auth.getUser();
       if (!user) {
         setDisplayName(null);
+        setIsAdmin(false);
         return;
       }
       const { data: perfil } = await supabase
         .from("perfiles")
-        .select("nombre, apellido")
+        .select("nombre, apellido, rol")
         .eq("id", user.id)
         .maybeSingle();
+      setIsAdmin(perfil?.rol === "admin");
       const full =
         perfil && `${perfil.nombre ?? ""} ${perfil.apellido ?? ""}`.trim();
       setDisplayName(
@@ -53,6 +58,8 @@ export function TopAppBar({
     }
     void loadName();
   }, []);
+
+  const nav = navItems.filter((item) => !item.adminOnly || isAdmin);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -99,6 +106,7 @@ export function TopAppBar({
           </button>
           <Link
             href="/dashboard"
+            prefetch
             className="font-headline text-xl font-extrabold tracking-tighter text-primary-dim"
           >
             EZSale
@@ -114,6 +122,7 @@ export function TopAppBar({
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 className={
                   isActive
                     ? "font-bold text-primary"
@@ -175,6 +184,7 @@ export function TopAppBar({
                   <li key={item.href}>
                     <Link
                       href={item.href}
+                      prefetch
                       onClick={() => setMenuOpen(false)}
                       className={
                         isActive

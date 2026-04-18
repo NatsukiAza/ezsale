@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SiteFooter } from "@/app/components/site-footer";
 import { Inter, Manrope } from "next/font/google";
 import "./globals.css";
 
@@ -39,7 +40,8 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-dvh flex flex-col bg-surface font-body text-on-surface">
-        {children}
+        <div className="flex min-h-dvh flex-1 flex-col">{children}</div>
+        <SiteFooter />
       </body>
     </html>
   );
