@@ -1,4 +1,7 @@
+ "use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import { TopAppBar } from "./top-app-bar";
 
 export type VentaHoyLinea = {
@@ -59,6 +62,7 @@ export function DashboardView({
   totalSemana,
   bestsellers,
 }: DashboardViewProps) {
+  const [showTotalHoy, setShowTotalHoy] = useState(false);
   const maxSemana = Math.max(...diasSemana.map((d) => d.monto), 1);
   const barMaxPx = 200;
 
@@ -81,9 +85,24 @@ export function DashboardView({
               <p className="text-xs font-medium uppercase tracking-[0.2em] text-primary-container">
                 Total vendido hoy
               </p>
-              <h1 className="text-5xl font-extrabold tracking-tighter md:text-7xl">
-                {formatArs(totalHoy)}
-              </h1>
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-5xl font-extrabold tracking-tighter md:text-7xl">
+                  {showTotalHoy ? formatArs(totalHoy) : "********"}
+                </h1>
+                <button
+                  type="button"
+                  onClick={() => setShowTotalHoy((v) => !v)}
+                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-surface-container-lowest/20 text-on-primary transition-colors hover:bg-surface-container-lowest/30"
+                  aria-label={
+                    showTotalHoy ? "Ocultar total vendido hoy" : "Mostrar total vendido hoy"
+                  }
+                  aria-pressed={showTotalHoy}
+                >
+                  <span className="material-symbols-outlined">
+                    {showTotalHoy ? "visibility_off" : "visibility"}
+                  </span>
+                </button>
+              </div>
               <div className="flex items-center gap-2 text-sm font-medium text-secondary-container">
                 <span className="material-symbols-outlined text-sm">
                   receipt_long
@@ -175,7 +194,7 @@ export function DashboardView({
                           {v.items} ítems
                         </span>
                         <span className="text-lg font-bold tabular-nums text-primary sm:text-xl">
-                          {formatArs(v.monto)}
+                          {showTotalHoy ? formatArs(v.monto) : "********"}
                         </span>
                       </div>
                     </div>
@@ -194,7 +213,7 @@ export function DashboardView({
                 <p className="mt-1 text-sm text-on-surface-variant">
                   Total:{" "}
                   <span className="font-semibold text-on-surface">
-                    {formatArs(totalSemana)}
+                    {showTotalHoy ? formatArs(totalSemana) : "********"}
                   </span>
                 </p>
               </div>
@@ -225,7 +244,7 @@ export function DashboardView({
                       }`}
                     >
                       <div className="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded bg-on-surface px-2 py-1 text-[10px] text-surface opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                        {formatArs(item.monto)}
+                        {showTotalHoy ? formatArs(item.monto) : "********"}
                       </div>
                     </div>
                     <span

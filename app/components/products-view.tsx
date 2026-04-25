@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { TopAppBar } from "./top-app-bar";
 
 type CategoriaListItem = {
@@ -18,6 +18,7 @@ type ProductoListItem = {
   descripcion: string;
   precio_actual: number;
   categoriaNombre: string | null;
+  searchText: string;
 };
 
 /** Normaliza para búsqueda (minúsculas, sin acentos) */
@@ -86,6 +87,7 @@ export function ProductsView() {
 
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const canSubmitProducto = useMemo(() => {
     const n = nombre.trim();
@@ -114,17 +116,16 @@ export function ProductsView() {
     if (filterCategoriaId) {
       list = list.filter((p) => p.id_categoria === filterCategoriaId);
     }
-    const q = searchFold(searchQuery.trim());
+    const q = searchFold(deferredSearchQuery.trim());
     if (!q) return list;
-    return list.filter((p) => {
-      const hay = `${p.nombre} ${p.descripcion} ${p.categoriaNombre ?? ""}`;
-      return searchFold(hay).includes(q);
-    });
-  }, [productos, searchQuery, filterCategoriaId]);
+    return list.filter((p) => p.searchText.includes(q));
+  }, [productos, deferredSearchQuery, filterCategoriaId]);
 
   const nombreFiltroCategoria = useMemo(() => {
     if (!filterCategoriaId) return null;
-    return categoriasList.find((c) => c.id === filterCategoriaId)?.nombre ?? null;
+    return (
+      categoriasList.find((c) => c.id === filterCategoriaId)?.nombre ?? null
+    );
   }, [categoriasList, filterCategoriaId]);
 
   const totalProductPages = useMemo(() => {
@@ -210,16 +211,24 @@ export function ProductsView() {
       );
       const rows = prods ?? [];
       setProductos(
-        rows.map((row) => ({
-          id: row.id as string,
-          id_categoria: row.id_categoria as string,
-          nombre: row.nombre as string,
-          descripcion: row.descripcion as string,
-          precio_actual: Number(row.precio_actual),
-          categoriaNombre: categoriaNombreFromJoin(
+        rows.map((row) => {
+          const nombre = row.nombre as string;
+          const descripcion = row.descripcion as string;
+          const categoriaNombre = categoriaNombreFromJoin(
             row as { categorias: unknown },
-          ),
-        })),
+          );
+          return {
+            id: row.id as string,
+            id_categoria: row.id_categoria as string,
+            nombre,
+            descripcion,
+            precio_actual: Number(row.precio_actual),
+            categoriaNombre,
+            searchText: searchFold(
+              `${nombre} ${descripcion} ${categoriaNombre ?? ""}`,
+            ),
+          };
+        }),
       );
     }
     setLoadingList(false);
@@ -528,8 +537,8 @@ export function ProductsView() {
             </>
           ) : (
             <p className="w-full rounded-xl border border-outline-variant/20 bg-surface-container-low/60 px-4 py-3 text-sm text-on-surface-variant">
-              Tocá una categoría para abrir la pestaña Productos filtrada por esa
-              categoría. La lista de categorías no se filtra por texto.
+              Tocá una categoría para abrir la pestaña Productos filtrada por
+              esa categoría. La lista de categorías no se filtra por texto.
             </p>
           )}
         </div>

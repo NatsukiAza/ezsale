@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 
 type CategoriaRow = { id: string; nombre: string };
 type ProductoRow = {
@@ -11,6 +11,7 @@ type ProductoRow = {
   id_categoria: string;
   nombre: string;
   precio_actual: number;
+  nombre_busqueda: string;
 };
 type MedioPagoRow = { id: string; nombre: string };
 
@@ -77,7 +78,8 @@ function iconForMedioPago(nombre: string) {
 }
 
 export function NewSaleView() {
-  const PRODUCTOS_POR_PAGINA = 5;
+  const PRODUCTOS_POR_PAGINA_MOBILE = 5;
+  const PRODUCTOS_POR_PAGINA_DESKTOP = 9;
   const router = useRouter();
   const [idTienda, setIdTienda] = useState<string | null>(null);
   const [categorias, setCategorias] = useState<CategoriaRow[]>([]);
@@ -87,6 +89,9 @@ export function NewSaleView() {
     useState<string>(ALL_CATEGORY_ID);
   const [productSearch, setProductSearch] = useState("");
   const [currentProductPage, setCurrentProductPage] = useState(1);
+  const [productosPorPagina, setProductosPorPagina] = useState(
+    PRODUCTOS_POR_PAGINA_MOBILE,
+  );
   const [cart, setCart] = useState<Record<string, CartLine>>({});
   const [selectedMedioId, setSelectedMedioId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -94,6 +99,10 @@ export function NewSaleView() {
   const [loadingProducts, setLoadingProducts] = useState(false);
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [saleState, setSaleState] = useState<"idle" | "loading" | "success">(
+    "idle",
+  );
+  const deferredProductSearch = useDeferredValue(productSearch);
 
   const cartLines = useMemo(
     () => Object.values(cart).sort((a, b) => a.nombre.localeCompare(b.nombre)),
@@ -183,6 +192,20 @@ export function NewSaleView() {
     router.prefetch("/dashboard");
   }, [router]);
 
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px)");
+    const applyByViewport = () => {
+      setProductosPorPagina(
+        media.matches
+          ? PRODUCTOS_POR_PAGINA_DESKTOP
+          : PRODUCTOS_POR_PAGINA_MOBILE,
+      );
+    };
+    applyByViewport();
+    media.addEventListener("change", applyByViewport);
+    return () => media.removeEventListener("change", applyByViewport);
+  }, []);
+
   const loadProductos = useCallback(async (tid: string) => {
     const supabase = createClient();
     if (!supabase) return;
@@ -199,7 +222,13 @@ export function NewSaleView() {
       setProductos([]);
       return;
     }
-    setProductos((data ?? []) as ProductoRow[]);
+    const rows = (data ?? []) as Omit<ProductoRow, "nombre_busqueda">[];
+    setProductos(
+      rows.map((row) => ({
+        ...row,
+        nombre_busqueda: searchFold(row.nombre),
+      })),
+    );
   }, []);
 
   useEffect(() => {
@@ -216,23 +245,23 @@ export function NewSaleView() {
   }, [productos, selectedCategoryId]);
 
   const productosFiltrados = useMemo(() => {
-    const q = searchFold(productSearch.trim());
+    const q = searchFold(deferredProductSearch.trim());
     // Si hay búsqueda, busca sobre todo el catálogo (global).
     const base = q ? productos : productosPorCategoria;
     if (!q) return base;
-    return base.filter((p) => searchFold(p.nombre).includes(q));
-  }, [productos, productosPorCategoria, productSearch]);
+    return base.filter((p) => p.nombre_busqueda.includes(q));
+  }, [productos, productosPorCategoria, deferredProductSearch]);
 
   const totalProductPages = useMemo(
     () =>
-      Math.max(1, Math.ceil(productosFiltrados.length / PRODUCTOS_POR_PAGINA)),
-    [productosFiltrados.length, PRODUCTOS_POR_PAGINA],
+      Math.max(1, Math.ceil(productosFiltrados.length / productosPorPagina)),
+    [productosFiltrados.length, productosPorPagina],
   );
 
   const productosPaginados = useMemo(() => {
-    const start = (currentProductPage - 1) * PRODUCTOS_POR_PAGINA;
-    return productosFiltrados.slice(start, start + PRODUCTOS_POR_PAGINA);
-  }, [productosFiltrados, currentProductPage, PRODUCTOS_POR_PAGINA]);
+    const start = (currentProductPage - 1) * productosPorPagina;
+    return productosFiltrados.slice(start, start + productosPorPagina);
+  }, [productosFiltrados, currentProductPage, productosPorPagina]);
 
   useEffect(() => {
     setCurrentProductPage(1);
@@ -314,6 +343,7 @@ export function NewSaleView() {
     }
 
     setRegistering(true);
+    setSaleState("loading");
     const payload = cartLines.map((l) => {
       const id = String(l.id_product).trim();
       const qty = Math.max(1, Math.floor(Number(l.cantidad)));
@@ -330,12 +360,15 @@ export function NewSaleView() {
       p_items: payload,
     });
 
-    setRegistering(false);
-
     if (error) {
+      setRegistering(false);
+      setSaleState("idle");
       setRegisterError(error.message);
       return;
     }
+
+    setSaleState("success");
+    await new Promise((resolve) => setTimeout(resolve, 950));
 
     setCart({});
     router.push("/dashboard");
@@ -347,7 +380,7 @@ export function NewSaleView() {
 
   return (
     <div className="min-h-screen bg-surface font-body text-on-surface">
-      <nav className="fixed top-0 z-50 flex w-full items-center justify-between bg-stone-50/80 px-6 py-4 shadow-sm backdrop-blur-md">
+      <nav className="fixed top-0 z-50 flex w-full items-center justify-between bg-stone-50/95 px-6 py-4 shadow-sm">
         <div className="flex items-center gap-4">
           <Link
             href="/dashboard"
@@ -508,7 +541,7 @@ export function NewSaleView() {
                   ))}
                 </div>
               )}
-              {productosFiltrados.length > PRODUCTOS_POR_PAGINA ? (
+              {productosFiltrados.length > productosPorPagina ? (
                 <div className="mt-4 flex items-center justify-center gap-2">
                   <button
                     type="button"
@@ -715,20 +748,59 @@ export function NewSaleView() {
                 </p>
               ) : null}
 
-              <button
-                type="button"
-                disabled={!canRegister}
-                onClick={() => void handleRegistrarVenta()}
-                className="flex w-full items-center justify-center gap-3 rounded-3xl bg-linear-to-br from-primary to-primary-dim py-6 text-xl font-bold text-on-primary shadow-xl shadow-primary/30 transition-transform active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <span
-                  className="material-symbols-outlined"
-                  style={{ fontVariationSettings: "'FILL' 1" }}
+              <div className="flex w-full justify-center">
+                <button
+                  type="button"
+                  disabled={!canRegister}
+                  onClick={() => void handleRegistrarVenta()}
+                  className={`relative flex h-20 items-center justify-center overflow-hidden bg-linear-to-br from-primary to-primary-dim text-on-primary shadow-xl shadow-primary/30 transition-all duration-500 ease-out ${
+                    saleState === "success"
+                      ? "w-20 gap-0 rounded-full px-0"
+                      : "w-full gap-3 rounded-3xl px-6 text-xl font-bold"
+                  } ${
+                    saleState === "idle"
+                      ? "active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                      : ""
+                  }`}
                 >
-                  check_circle
-                </span>
-                {registering ? "Registrando…" : "Registrar venta"}
-              </button>
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-y-0 left-0 bg-emerald-500"
+                    style={{
+                      width:
+                        saleState === "loading"
+                          ? "95%"
+                          : saleState === "success"
+                            ? "100%"
+                            : "0%",
+                      transition:
+                        saleState === "loading"
+                          ? "width 1800ms ease-out"
+                          : saleState === "success"
+                            ? "width 250ms ease-out"
+                            : "width 150ms ease-out",
+                    }}
+                  />
+                  <span
+                    className={`material-symbols-outlined relative z-10 transition-[font-size] duration-300 ${
+                      saleState === "success" ? "text-4xl" : ""
+                    }`}
+                    style={{
+                      fontVariationSettings:
+                        saleState === "success"
+                          ? "'FILL' 1, 'wght' 700"
+                          : "'FILL' 1",
+                    }}
+                  >
+                    {saleState === "success" ? "check" : "check_circle"}
+                  </span>
+                  {saleState !== "success" ? (
+                    <span className="relative z-10 whitespace-nowrap">
+                      {registering ? "Registrando…" : "Registrar venta"}
+                    </span>
+                  ) : null}
+                </button>
+              </div>
             </section>
           </>
         )}

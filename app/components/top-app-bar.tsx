@@ -85,7 +85,7 @@ export function TopAppBar({
   }, []);
 
   return (
-    <header className="fixed top-0 z-50 w-full bg-stone-50/80 shadow-sm backdrop-blur-md">
+    <header className="fixed top-0 z-50 w-full bg-stone-50/95 shadow-sm">
       <div
         className={`flex w-full items-center justify-between px-6 py-4 ${
           menuOpen ? "relative z-80 bg-stone-50 shadow-sm" : ""
