@@ -22,71 +22,68 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
   const weekStart = new Date(Date.UTC(y, mo, d - 6, 0, 0, 0));
   const weekEnd = todayEnd;
 
-  const [hoyRes, semRes, bestRes] = await Promise.all([
+  // Paralelizamos todo lo que no depende de IDs concretos.
+  // - Una sola query trae las ventas de la semana (incluye las de hoy);
+  //   el "hoy" sale filtrando en memoria, ahorrando un round-trip.
+  // - perfiles de la tienda no necesita los uids previos: filtramos por id_tienda.
+  const [semRes, bestRes, perfilesRes] = await Promise.all([
     supabase
       .from("ventas")
       .select("id, id_usuario, monto_total, fecha_venta")
       .eq("id_tienda", idTienda)
-      .gte("fecha_venta", todayStart.toISOString())
-      .lt("fecha_venta", todayEnd.toISOString())
-      .order("fecha_venta", { ascending: false }),
-    supabase
-      .from("ventas")
-      .select("monto_total, fecha_venta")
-      .eq("id_tienda", idTienda)
       .gte("fecha_venta", weekStart.toISOString())
-      .lt("fecha_venta", weekEnd.toISOString()),
+      .lt("fecha_venta", weekEnd.toISOString())
+      .order("fecha_venta", { ascending: false }),
     supabase.rpc("top_productos_por_tienda", {
       p_id_tienda: idTienda,
       p_limit: 3,
     }),
+    supabase
+      .from("perfiles")
+      .select("id, nombre, apellido")
+      .eq("id_tienda", idTienda),
   ]);
 
-  if (hoyRes.error) {
-    return { error: hoyRes.error.message } as const;
-  }
   if (semRes.error) {
     return { error: semRes.error.message } as const;
   }
   if (bestRes.error) {
     return { error: bestRes.error.message } as const;
   }
+  if (perfilesRes.error) {
+    return { error: perfilesRes.error.message } as const;
+  }
 
-  const rowsHoyAll = hoyRes.data ?? [];
+  const rowsSemana = semRes.data ?? [];
+  const todayStartMs = todayStart.getTime();
+  const todayEndMs = todayEnd.getTime();
+  const rowsHoyAll = rowsSemana.filter((v) => {
+    const t = new Date(v.fecha_venta as string).getTime();
+    return t >= todayStartMs && t < todayEndMs;
+  });
   const totalHoy = rowsHoyAll.reduce((s, v) => s + Number(v.monto_total), 0);
   const cantidadVentasHoy = rowsHoyAll.length;
 
   const rowsHoyLista = rowsHoyAll.slice(0, 5);
-  const uids = [...new Set(rowsHoyLista.map((v) => v.id_usuario))];
   const vidsLista = rowsHoyLista.map((v) => v.id as string);
 
   const nameByUser = new Map<string, string>();
+  for (const p of perfilesRes.data ?? []) {
+    const nombre = `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim() || "Usuario";
+    nameByUser.set(p.id as string, nombre);
+  }
+
   const lineasPorVenta = new Map<string, { nombre: string; cantidad: number }[]>();
 
-  if (uids.length > 0 || vidsLista.length > 0) {
-    const [perfilesRes, detsRes] = await Promise.all([
-      uids.length > 0
-        ? supabase.from("perfiles").select("id, nombre, apellido").in("id", uids)
-        : Promise.resolve({ data: [] as const, error: null }),
-      vidsLista.length > 0
-        ? supabase
-            .from("detalle_ventas")
-            .select("id_venta, cantidad, productos ( nombre )")
-            .in("id_venta", vidsLista)
-            .order("id")
-        : Promise.resolve({ data: [] as const, error: null }),
-    ]);
+  if (vidsLista.length > 0) {
+    const detsRes = await supabase
+      .from("detalle_ventas")
+      .select("id_venta, cantidad, productos ( nombre )")
+      .in("id_venta", vidsLista)
+      .order("id");
 
-    if (perfilesRes.error) {
-      return { error: perfilesRes.error.message } as const;
-    }
     if (detsRes.error) {
       return { error: detsRes.error.message } as const;
-    }
-
-    for (const p of perfilesRes.data ?? []) {
-      const nombre = `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim() || "Usuario";
-      nameByUser.set(p.id, nombre);
     }
 
     function nombreProducto(row: { productos: unknown }): string {
@@ -182,6 +179,10 @@ export default async function DashboardPage() {
 
   const idTienda = perfil.id_tienda;
   const esAdmin = perfil.rol === "admin";
+  const displayName =
+    `${perfil.nombre ?? ""} ${perfil.apellido ?? ""}`.trim() ||
+    user.email?.split("@")[0] ||
+    "Usuario";
 
   const [data, tiendaRes] = await Promise.all([
     loadDashboardData(supabase, idTienda),
@@ -204,6 +205,7 @@ export default async function DashboardPage() {
     <DashboardView
       tiendaNombre={tiendaNombre}
       esAdmin={esAdmin}
+      displayName={displayName}
       totalHoy={data.totalHoy}
       cantidadVentasHoy={data.cantidadVentasHoy}
       ventasHoy={data.ventasHoy}

@@ -5,6 +5,8 @@ import type { SupabaseClient, User } from "@supabase/supabase-js";
 type PerfilBasico = {
   id_tienda: string;
   rol: "admin" | "normal" | string;
+  nombre: string | null;
+  apellido: string | null;
 };
 
 /**
@@ -39,7 +41,7 @@ export const getPerfilTienda = cache(
     }
     const { data: perfil } = await supabase
       .from("perfiles")
-      .select("id_tienda, rol")
+      .select("id_tienda, rol, nombre, apellido")
       .eq("id", user.id)
       .maybeSingle();
     if (!perfil?.id_tienda) {
@@ -51,6 +53,8 @@ export const getPerfilTienda = cache(
       perfil: {
         id_tienda: perfil.id_tienda as string,
         rol: perfil.rol as string,
+        nombre: (perfil.nombre as string | null) ?? null,
+        apellido: (perfil.apellido as string | null) ?? null,
       },
     };
   },

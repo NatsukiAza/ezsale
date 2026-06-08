@@ -35,6 +35,8 @@ type DashboardViewProps = {
   tiendaNombre?: string | null;
   /** Si false (rol normal), no se muestran enlaces a reportes. */
   esAdmin?: boolean;
+  /** Nombre para mostrar en el TopAppBar; evita un fetch en cliente. */
+  displayName?: string | null;
   totalHoy: number;
   cantidadVentasHoy: number;
   ventasHoy: VentaHoyItem[];
@@ -55,6 +57,7 @@ function formatArs(n: number) {
 export function DashboardView({
   tiendaNombre,
   esAdmin = true,
+  displayName,
   totalHoy,
   cantidadVentasHoy,
   ventasHoy,
@@ -68,7 +71,11 @@ export function DashboardView({
 
   return (
     <div className="min-h-screen pb-12">
-      <TopAppBar activeHref="/dashboard" />
+      <TopAppBar
+        activeHref="/dashboard"
+        initialDisplayName={displayName ?? null}
+        initialIsAdmin={esAdmin}
+      />
       {tiendaNombre ? (
         <div className="border-b border-stone-200/60 bg-secondary-container/30 px-6 py-2 text-center text-sm font-medium text-on-secondary-container">
           Panel de{" "}

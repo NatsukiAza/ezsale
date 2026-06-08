@@ -16,17 +16,29 @@ const navItems = [
 type TopAppBarProps = {
   title?: string;
   activeHref?: string;
+  /** Si se pasa desde el server, evitamos el fetch en cliente. */
+  initialDisplayName?: string | null;
+  /** Si se pasa desde el server, evitamos el fetch en cliente. */
+  initialIsAdmin?: boolean;
 };
 
 export function TopAppBar({
   title,
   activeHref = "/dashboard",
+  initialDisplayName,
+  initialIsAdmin,
 }: TopAppBarProps) {
+  const hasInitial =
+    typeof initialDisplayName !== "undefined" &&
+    typeof initialIsAdmin !== "undefined";
   const [menuOpen, setMenuOpen] = useState(false);
-  const [displayName, setDisplayName] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [displayName, setDisplayName] = useState<string | null>(
+    initialDisplayName ?? null,
+  );
+  const [isAdmin, setIsAdmin] = useState(initialIsAdmin ?? false);
 
   useEffect(() => {
+    if (hasInitial) return;
     async function loadName() {
       const supabase = createClient();
       if (!supabase) {
@@ -57,7 +69,7 @@ export function TopAppBar({
       );
     }
     void loadName();
-  }, []);
+  }, [hasInitial]);
 
   const nav = navItems.filter((item) => !item.adminOnly || isAdmin);
 

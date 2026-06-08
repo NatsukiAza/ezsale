@@ -12,6 +12,7 @@ type ReportsViewProps = {
 type Period = "day" | "month" | "year";
 
 type DetalleVentaRow = {
+  id_product: string;
   cantidad: number;
   subtotal: number | string;
   precio_unitario_historico: number | string;
@@ -24,8 +25,28 @@ type VentaRow = {
   fecha_venta: string;
   monto_total: number | string;
   id_usuario: string;
+  id_medio_pago: string;
   medios_pago: { nombre: string } | { nombre: string }[] | null;
   detalle_ventas: DetalleVentaRow[] | null;
+};
+
+type MedioPagoRow = { id: string; nombre: string };
+type ProductoOpcion = {
+  id: string;
+  nombre: string;
+  precio_actual: number;
+  nombre_busqueda: string;
+};
+
+type EditableLine = {
+  id_product: string;
+  nombre: string;
+  /** Precio histórico para líneas existentes; precio actual para nuevas. */
+  precio_unitario: number;
+  cantidad: number;
+  descuento_porcentaje: number;
+  /** True si la línea ya estaba en la venta original. */
+  isExisting: boolean;
 };
 
 function medioNombre(v: VentaRow): string {
@@ -33,6 +54,33 @@ function medioNombre(v: VentaRow): string {
   if (!m) return "—";
   if (Array.isArray(m)) return m[0]?.nombre ?? "—";
   return m.nombre;
+}
+
+function clampDescuentoPct(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+function searchFold(s: string) {
+  return s
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function iconForMedioPago(nombre: string) {
+  switch (nombre) {
+    case "Efectivo":
+      return "payments";
+    case "Mercado Pago":
+      return "qr_code_2";
+    case "Transferencia":
+      return "account_balance";
+    case "Tarjeta":
+      return "credit_card";
+    default:
+      return "credit_card";
+  }
 }
 
 function formatMoney(n: number) {
@@ -109,6 +157,15 @@ export function ReportsView({ activeHref = "/reports" }: ReportsViewProps) {
   const [namesByUser, setNamesByUser] = useState<Record<string, string>>({});
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const [mediosPago, setMediosPago] = useState<MedioPagoRow[]>([]);
+  const [productosTienda, setProductosTienda] = useState<ProductoOpcion[]>([]);
+  const [editingVenta, setEditingVenta] = useState<VentaRow | null>(null);
+  const [editLines, setEditLines] = useState<Record<string, EditableLine>>({});
+  const [editMedioId, setEditMedioId] = useState<string | null>(null);
+  const [productSearch, setProductSearch] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const rangeLabel = useMemo(() => {
     if (period === "day") {
@@ -234,8 +291,10 @@ export function ReportsView({ activeHref = "/reports" }: ReportsViewProps) {
         fecha_venta,
         monto_total,
         id_usuario,
+        id_medio_pago,
         medios_pago ( nombre ),
         detalle_ventas (
+          id_product,
           cantidad,
           subtotal,
           precio_unitario_historico,
@@ -288,6 +347,224 @@ export function ReportsView({ activeHref = "/reports" }: ReportsViewProps) {
     setLoading(true);
     void loadVentas();
   }, [loadVentas]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadEditOptions() {
+      const supabase = createClient();
+      if (!supabase) return;
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: perfil } = await supabase
+        .from("perfiles")
+        .select("id_tienda")
+        .eq("id", user.id)
+        .maybeSingle();
+      const tid = perfil?.id_tienda as string | undefined;
+      if (!tid) return;
+
+      const [medRes, prodRes] = await Promise.all([
+        supabase.from("medios_pago").select("id, nombre").order("nombre"),
+        supabase
+          .from("productos")
+          .select("id, nombre, precio_actual")
+          .eq("id_tienda", tid)
+          .order("nombre"),
+      ]);
+
+      if (cancelled) return;
+
+      if (!medRes.error && medRes.data) {
+        setMediosPago(medRes.data as MedioPagoRow[]);
+      }
+      if (!prodRes.error && prodRes.data) {
+        const rows = prodRes.data as Array<{
+          id: string;
+          nombre: string;
+          precio_actual: number | string;
+        }>;
+        setProductosTienda(
+          rows.map((p) => ({
+            id: p.id,
+            nombre: p.nombre,
+            precio_actual: Number(p.precio_actual),
+            nombre_busqueda: searchFold(p.nombre),
+          })),
+        );
+      }
+    }
+    void loadEditOptions();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function openEdit(v: VentaRow) {
+    const lines: Record<string, EditableLine> = {};
+    for (const d of v.detalle_ventas ?? []) {
+      const nombre = productNombre(d);
+      const precio = Number(d.precio_unitario_historico);
+      const cantidad = Math.max(1, Math.floor(Number(d.cantidad)));
+      const desc = clampDescuentoPct(Number(d.descuento_porcentaje ?? 0));
+      const cur = lines[d.id_product];
+      if (cur) {
+        cur.cantidad += cantidad;
+      } else {
+        lines[d.id_product] = {
+          id_product: d.id_product,
+          nombre,
+          precio_unitario: precio,
+          cantidad,
+          descuento_porcentaje: desc,
+          isExisting: true,
+        };
+      }
+    }
+    setEditLines(lines);
+    setEditMedioId(v.id_medio_pago);
+    setProductSearch("");
+    setEditError(null);
+    setEditingVenta(v);
+  }
+
+  function closeEdit() {
+    if (savingEdit) return;
+    setEditingVenta(null);
+    setEditLines({});
+    setEditMedioId(null);
+    setProductSearch("");
+    setEditError(null);
+  }
+
+  function setEditLineQty(id: string, qty: number) {
+    if (qty < 1) {
+      setEditLines((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    setEditLines((prev) => {
+      const cur = prev[id];
+      if (!cur) return prev;
+      return { ...prev, [id]: { ...cur, cantidad: qty } };
+    });
+  }
+
+  function setEditLineDescuento(id: string, raw: string) {
+    const n = raw === "" ? 0 : Number.parseInt(raw, 10);
+    const pct = raw === "" || Number.isNaN(n) ? 0 : clampDescuentoPct(n);
+    setEditLines((prev) => {
+      const cur = prev[id];
+      if (!cur) return prev;
+      return { ...prev, [id]: { ...cur, descuento_porcentaje: pct } };
+    });
+  }
+
+  function addProductoToEdit(p: ProductoOpcion) {
+    setEditLines((prev) => {
+      const cur = prev[p.id];
+      if (cur) {
+        return {
+          ...prev,
+          [p.id]: { ...cur, cantidad: cur.cantidad + 1 },
+        };
+      }
+      return {
+        ...prev,
+        [p.id]: {
+          id_product: p.id,
+          nombre: p.nombre,
+          precio_unitario: p.precio_actual,
+          cantidad: 1,
+          descuento_porcentaje: 0,
+          isExisting: false,
+        },
+      };
+    });
+  }
+
+  async function handleGuardarEdicion() {
+    if (!editingVenta) return;
+    setEditError(null);
+    const lines = Object.values(editLines);
+    if (lines.length === 0) {
+      setEditError("La venta debe tener al menos un producto.");
+      return;
+    }
+    if (!editMedioId) {
+      setEditError("Elegí un medio de pago.");
+      return;
+    }
+    const supabase = createClient();
+    if (!supabase) {
+      setEditError("Supabase no está configurado.");
+      return;
+    }
+
+    setSavingEdit(true);
+    const payload = lines.map((l) => ({
+      id_product: l.id_product,
+      cantidad: Math.max(1, Math.floor(l.cantidad)),
+      descuento_porcentaje: clampDescuentoPct(l.descuento_porcentaje),
+      // Solo enviamos el precio histórico cuando ya existía la línea; para
+      // las nuevas líneas dejamos que el RPC use el precio actual.
+      ...(l.isExisting
+        ? { precio_unitario_historico: l.precio_unitario }
+        : {}),
+    }));
+
+    const { error } = await supabase.rpc("editar_venta", {
+      p_id_venta: editingVenta.id,
+      p_id_medio_pago: editMedioId,
+      p_items: payload,
+    });
+
+    if (error) {
+      setSavingEdit(false);
+      setEditError(error.message);
+      return;
+    }
+
+    await loadVentas();
+    setSavingEdit(false);
+    setEditingVenta(null);
+    setEditLines({});
+    setEditMedioId(null);
+    setProductSearch("");
+  }
+
+  const editLineList = useMemo(
+    () =>
+      Object.values(editLines).sort((a, b) =>
+        a.nombre.localeCompare(b.nombre, "es"),
+      ),
+    [editLines],
+  );
+
+  const editTotal = useMemo(
+    () =>
+      editLineList.reduce(
+        (s, l) =>
+          s +
+          l.precio_unitario *
+            l.cantidad *
+            (1 - clampDescuentoPct(l.descuento_porcentaje) / 100),
+        0,
+      ),
+    [editLineList],
+  );
+
+  const productosDisponibles = useMemo(() => {
+    const q = searchFold(productSearch.trim());
+    if (!q) return productosTienda.slice(0, 8);
+    return productosTienda
+      .filter((p) => p.nombre_busqueda.includes(q))
+      .slice(0, 8);
+  }, [productSearch, productosTienda]);
 
   const now = new Date();
   const todayYmd = todayLocalYmd();
@@ -565,9 +842,19 @@ export function ReportsView({ activeHref = "/reports" }: ReportsViewProps) {
                 return (
                   <li
                     key={v.id}
-                    className="overflow-hidden rounded-[2rem] border border-stone-100 bg-surface-container-lowest shadow-sm"
+                    className="relative overflow-hidden rounded-[2rem] border border-stone-100 bg-surface-container-lowest shadow-sm"
                   >
-                    <div className="flex flex-col gap-4 border-b border-stone-100/80 bg-surface-container-low px-6 py-5 sm:flex-row sm:items-start sm:justify-between">
+                    <button
+                      type="button"
+                      onClick={() => openEdit(v)}
+                      className="absolute top-3 right-3 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-surface-container-lowest text-on-surface-variant shadow-sm ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-low hover:text-primary"
+                      aria-label={`Editar venta del ${fecha}`}
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        edit
+                      </span>
+                    </button>
+                    <div className="flex flex-col gap-4 border-b border-stone-100/80 bg-surface-container-low px-6 py-5 pr-16 sm:flex-row sm:items-start sm:justify-between sm:pr-16">
                       <div>
                         <p className="font-semibold text-on-surface">{fecha}</p>
                         <p className="text-sm text-on-surface-variant">
@@ -633,6 +920,297 @@ export function ReportsView({ activeHref = "/reports" }: ReportsViewProps) {
           )}
         </section>
       </main>
+
+      {editingVenta ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-sale-title"
+        >
+          <button
+            type="button"
+            className="absolute inset-0 bg-black/45"
+            aria-label="Cerrar"
+            onClick={closeEdit}
+          />
+          <div
+            className="relative z-10 flex max-h-[92vh] w-full max-w-2xl flex-col overflow-hidden rounded-4xl border border-stone-200/80 bg-surface-container-lowest shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-stone-100 px-6 py-5 sm:px-8">
+              <div>
+                <h2
+                  id="edit-sale-title"
+                  className="font-headline text-2xl font-extrabold text-on-surface"
+                >
+                  Editar venta
+                </h2>
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {formatDateTimeLabel(editingVenta.fecha_venta).fecha} ·{" "}
+                  {formatDateTimeLabel(editingVenta.fecha_venta).hora}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeEdit}
+                className="rounded-xl p-2 text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface"
+                aria-label="Cerrar"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto px-6 py-5 sm:px-8">
+              <section className="space-y-3">
+                <h3 className="font-label text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">
+                  Productos
+                </h3>
+                {editLineList.length === 0 ? (
+                  <p className="rounded-xl border border-stone-200/80 bg-surface-container-low/50 px-4 py-3 text-sm text-on-surface-variant">
+                    Agregá al menos un producto debajo.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {editLineList.map((line) => {
+                      const d = clampDescuentoPct(line.descuento_porcentaje);
+                      const sub =
+                        line.precio_unitario *
+                        line.cantidad *
+                        (1 - d / 100);
+                      return (
+                        <li
+                          key={line.id_product}
+                          className="rounded-2xl border border-stone-100 bg-surface-container-low px-4 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate font-semibold text-on-surface">
+                                {line.nombre}
+                              </p>
+                              <p className="text-xs text-on-surface-variant">
+                                {formatMoney(line.precio_unitario)} c/u
+                                {line.isExisting ? null : (
+                                  <span className="ml-1.5 rounded-full bg-secondary-container px-1.5 py-0.5 text-[10px] font-semibold text-on-secondary-container">
+                                    nuevo
+                                  </span>
+                                )}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditLineQty(line.id_product, 0)}
+                              className="rounded-lg p-1.5 text-on-surface-variant transition-colors hover:bg-error-container/40 hover:text-error"
+                              aria-label={`Quitar ${line.nombre}`}
+                            >
+                              <span className="material-symbols-outlined text-lg">
+                                delete
+                              </span>
+                            </button>
+                          </div>
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-stone-200/60 pt-3">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditLineQty(
+                                    line.id_product,
+                                    line.cantidad - 1,
+                                  )
+                                }
+                                className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
+                                aria-label="Quitar uno"
+                              >
+                                −
+                              </button>
+                              <span className="min-w-8 text-center font-bold tabular-nums">
+                                {line.cantidad}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditLineQty(
+                                    line.id_product,
+                                    line.cantidad + 1,
+                                  )
+                                }
+                                className="rounded-lg bg-surface-container-high px-2 py-1 text-lg leading-none text-on-surface"
+                                aria-label="Agregar uno"
+                              >
+                                +
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <label
+                                className="text-[11px] font-medium text-on-surface-variant"
+                                htmlFor={`edit-desc-${line.id_product}`}
+                              >
+                                Desc. %
+                              </label>
+                              <input
+                                id={`edit-desc-${line.id_product}`}
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={d}
+                                onChange={(e) =>
+                                  setEditLineDescuento(
+                                    line.id_product,
+                                    e.target.value,
+                                  )
+                                }
+                                className="w-14 rounded-lg border-none bg-surface-container-high px-2 py-1.5 text-center text-sm font-semibold tabular-nums text-on-surface outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/35"
+                                aria-label={`Descuento porcentual para ${line.nombre}`}
+                              />
+                            </div>
+                            <span className="font-bold tabular-nums text-primary">
+                              {formatMoney(sub)}
+                            </span>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </section>
+
+              <section className="mt-6 space-y-3">
+                <h3 className="font-label text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">
+                  Agregar producto
+                </h3>
+                <div className="relative">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                    <span className="material-symbols-outlined text-lg text-outline">
+                      search
+                    </span>
+                  </div>
+                  <input
+                    type="search"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="Buscar por nombre…"
+                    autoComplete="off"
+                    className="w-full rounded-xl border-none bg-surface-container-low py-2.5 pr-3 pl-10 text-on-surface outline-none ring-1 ring-stone-200/80 placeholder:text-on-surface-variant focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary/30"
+                    aria-label="Buscar productos por nombre"
+                  />
+                </div>
+                {productosDisponibles.length === 0 ? (
+                  <p className="text-xs text-on-surface-variant">
+                    {productosTienda.length === 0
+                      ? "Cargando productos…"
+                      : "Sin coincidencias."}
+                  </p>
+                ) : (
+                  <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    {productosDisponibles.map((p) => (
+                      <li key={p.id}>
+                        <button
+                          type="button"
+                          onClick={() => addProductoToEdit(p)}
+                          className="group flex w-full items-center justify-between gap-3 rounded-xl border border-stone-200 bg-surface-container-lowest px-3 py-2 text-left transition-colors hover:bg-surface-container-low"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-on-surface">
+                              {p.nombre}
+                            </p>
+                            <p className="text-xs font-bold text-primary">
+                              {formatMoney(p.precio_actual)}
+                            </p>
+                          </div>
+                          <span
+                            className="material-symbols-outlined shrink-0 rounded-full bg-primary p-1.5 text-base text-on-primary"
+                            style={{ fontVariationSettings: "'FILL' 1" }}
+                            aria-hidden="true"
+                          >
+                            add
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+
+              <section className="mt-6 space-y-3">
+                <h3 className="font-label text-[10px] font-bold tracking-widest text-on-surface-variant uppercase">
+                  Método de pago
+                </h3>
+                {mediosPago.length === 0 ? (
+                  <p className="text-xs text-on-surface-variant">
+                    Cargando medios de pago…
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {mediosPago.map((m) => {
+                      const active = editMedioId === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => setEditMedioId(m.id)}
+                          className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl border-2 p-3 text-xs font-semibold transition-all active:scale-95 ${
+                            active
+                              ? "border-primary bg-surface-container-lowest text-primary"
+                              : "border-stone-200 bg-surface-container-lowest text-on-surface-variant hover:bg-surface-container-low"
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-2xl">
+                            {iconForMedioPago(m.nombre)}
+                          </span>
+                          {m.nombre}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
+            </div>
+
+            <div className="border-t border-stone-100 bg-surface-container-low px-6 py-4 sm:px-8">
+              <div className="mb-3 flex items-center justify-between">
+                <span className="font-label text-[10px] tracking-widest text-on-surface-variant uppercase">
+                  Total
+                </span>
+                <span className="font-headline text-2xl font-extrabold text-on-surface">
+                  {formatMoney(editTotal)}
+                </span>
+              </div>
+              {editError ? (
+                <p
+                  className="mb-3 rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error"
+                  role="alert"
+                >
+                  {editError}
+                </p>
+              ) : null}
+              <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeEdit}
+                  disabled={savingEdit}
+                  className="rounded-2xl px-6 py-3 font-semibold text-on-surface-variant ring-1 ring-stone-200/80 transition-colors hover:bg-surface-container-high disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleGuardarEdicion()}
+                  disabled={
+                    savingEdit ||
+                    editLineList.length === 0 ||
+                    !editMedioId
+                  }
+                  className="rounded-2xl bg-linear-to-br from-primary to-primary-dim px-6 py-3 font-bold text-on-primary shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {savingEdit ? "Guardando…" : "Guardar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

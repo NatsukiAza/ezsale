@@ -210,25 +210,51 @@ export function NewSaleView() {
     const supabase = createClient();
     if (!supabase) return;
     setLoadingProducts(true);
-    const q = supabase
-      .from("productos")
-      .select("id, id_categoria, nombre, precio_actual")
-      .eq("id_tienda", tid)
-      .order("nombre");
-    const { data, error } = await q;
+
+    const [productosRes, ventasRes] = await Promise.all([
+      supabase
+        .from("productos")
+        .select("id, id_categoria, nombre, precio_actual")
+        .eq("id_tienda", tid),
+      supabase.rpc("unidades_vendidas_por_tienda", { p_id_tienda: tid }),
+    ]);
+
     setLoadingProducts(false);
-    if (error) {
-      setLoadError(error.message);
+
+    if (productosRes.error) {
+      setLoadError(productosRes.error.message);
       setProductos([]);
       return;
     }
-    const rows = (data ?? []) as Omit<ProductoRow, "nombre_busqueda">[];
-    setProductos(
-      rows.map((row) => ({
+
+    const ventasMap = new Map<string, number>();
+    if (!ventasRes.error && ventasRes.data) {
+      const ventasRows = ventasRes.data as Array<{
+        id_product: string;
+        unidades: number | string;
+      }>;
+      for (const row of ventasRows) {
+        ventasMap.set(row.id_product, Number(row.unidades));
+      }
+    }
+
+    const rows = (productosRes.data ?? []) as Omit<
+      ProductoRow,
+      "nombre_busqueda"
+    >[];
+    const ordenados = rows
+      .map((row) => ({
         ...row,
         nombre_busqueda: searchFold(row.nombre),
-      })),
-    );
+      }))
+      .sort((a, b) => {
+        const ua = ventasMap.get(a.id) ?? 0;
+        const ub = ventasMap.get(b.id) ?? 0;
+        if (ub !== ua) return ub - ua;
+        return a.nombre.localeCompare(b.nombre, "es");
+      });
+
+    setProductos(ordenados);
   }, []);
 
   useEffect(() => {
@@ -368,11 +394,15 @@ export function NewSaleView() {
     }
 
     setSaleState("success");
+    // Invalida el caché del router y arranca un prefetch fresco de /dashboard
+    // mientras corre la animación de éxito. Cuando hagamos router.push abajo,
+    // los datos ya van a estar listos y la navegación se siente instantánea.
+    router.refresh();
+    router.prefetch("/dashboard");
     await new Promise((resolve) => setTimeout(resolve, 950));
 
     setCart({});
     router.push("/dashboard");
-    router.refresh();
   }
 
   const canRegister =
