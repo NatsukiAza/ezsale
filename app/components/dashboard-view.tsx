@@ -76,14 +76,6 @@ export function DashboardView({
         initialDisplayName={displayName ?? null}
         initialIsAdmin={esAdmin}
       />
-      {tiendaNombre ? (
-        <div className="border-b border-stone-200/60 bg-secondary-container/30 px-6 py-2 text-center text-sm font-medium text-on-secondary-container">
-          Panel de{" "}
-          <span className="font-headline font-bold text-secondary">
-            {tiendaNombre}
-          </span>
-        </div>
-      ) : null}
       <main className="mx-auto max-w-6xl space-y-10 px-6 pt-24">
         <section className="relative overflow-hidden rounded-4xl bg-linear-to-br from-primary to-primary-dim p-8 text-on-primary shadow-xl md:p-12">
           <div className="absolute top-0 right-0 h-64 w-64 translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-container/20 blur-3xl" />
