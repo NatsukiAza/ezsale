@@ -1,86 +1,482 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ---------------------------------------------------------------------------
+   Capa 1 — Primitivos
+   No se usan en el markup. Solo alimentan la capa semántica.
+   Ver DESIGN.md § 2.1
+   --------------------------------------------------------------------------- */
+
+:root {
+  --clay-50: #fdf4f1;
+  --clay-100: #fbe6e0;
+  --clay-200: #f6ccc0;
+  --clay-300: #eda893;
+  --clay-400: #df7c61;
+  --clay-500: #ce5a3d;
+  --clay-600: #b4462f;
+  --clay-700: #953826;
+  --clay-800: #7a3022;
+  --clay-900: #662b21;
+  --clay-950: #38130d;
+
+  --neutral-0: #ffffff;
+  --neutral-25: #fcfcfb;
+  --neutral-50: #f7f6f4;
+  --neutral-100: #efedea;
+  --neutral-200: #e2dfda;
+  --neutral-300: #cbc7c1;
+  --neutral-400: #a8a39c;
+  --neutral-500: #837e77;
+  --neutral-600: #67625c;
+  --neutral-700: #4e4a45;
+  --neutral-800: #34312d;
+  --neutral-900: #21201d;
+  --neutral-950: #171614;
+}
+
+/* ---------------------------------------------------------------------------
+   Capa 2 — Semánticos (modo claro)
+   Ver DESIGN.md § 2.2
+   --------------------------------------------------------------------------- */
+
+:root {
+  --background: var(--neutral-50);
+  --foreground: var(--neutral-900);
+
+  --card: var(--neutral-0);
+  --card-foreground: var(--neutral-900);
+
+  --popover: var(--neutral-0);
+  --popover-foreground: var(--neutral-900);
+
+  --surface-sunken: var(--neutral-100);
+
+  --primary: var(--clay-600);
+  --primary-foreground: var(--neutral-0);
+  --primary-hover: var(--clay-700);
+  --primary-subtle: var(--clay-50);
+  --primary-subtle-foreground: var(--clay-900);
+
+  --secondary: var(--neutral-100);
+  --secondary-foreground: var(--neutral-800);
+
+  --muted: var(--neutral-100);
+  --muted-foreground: var(--neutral-600);
+
+  --accent: var(--neutral-100);
+  --accent-foreground: var(--neutral-900);
+
+  --destructive: #c0202f;
+  --destructive-foreground: var(--neutral-0);
+  --destructive-subtle: #fbeaec;
+  --destructive-subtle-foreground: #8c1622;
+
+  --success: #1a7f4b;
+  --success-foreground: var(--neutral-0);
+  --success-subtle: #e7f4ec;
+  --success-subtle-foreground: #13603a;
+
+  --warning: #a96500;
+  --warning-foreground: var(--neutral-0);
+  --warning-subtle: #fbf0df;
+  --warning-subtle-foreground: #7d4b00;
+
+  --info: #1f5fa8;
+  --info-foreground: var(--neutral-0);
+  --info-subtle: #eaf1fa;
+  --info-subtle-foreground: #1a4b84;
+
+  --border: var(--neutral-200);
+  --input: var(--neutral-500);
+  --ring: var(--clay-600);
+
+  --sidebar: var(--neutral-100);
+  --sidebar-foreground: var(--neutral-700);
+  --sidebar-border: var(--neutral-200);
+  --sidebar-accent: var(--neutral-200);
+  --sidebar-accent-foreground: var(--neutral-900);
+  --sidebar-primary: var(--clay-600);
+  --sidebar-primary-foreground: var(--neutral-0);
+  --sidebar-ring: var(--clay-600);
+
+  --chart-1: #ce5a3d;
+  --chart-2: #2f6f5b;
+  --chart-3: #c08a2e;
+  --chart-4: #5a6b8c;
+  --chart-5: #8a5a7a;
+
+  --overlay-shadow-sm:
+    0 1px 2px -1px rgb(23 22 20 / 0.1), 0 4px 12px -3px rgb(23 22 20 / 0.12);
+  --overlay-shadow:
+    0 2px 4px -2px rgb(23 22 20 / 0.12), 0 16px 40px -12px rgb(23 22 20 / 0.22);
+
+  /* Consumido por sonner */
+  --radius: 0.5rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Capa 2 — Semánticos (modo oscuro)
+   --------------------------------------------------------------------------- */
+
+.dark {
+  --background: var(--neutral-950);
+  --foreground: var(--neutral-100);
+
+  --card: #1d1c1a;
+  --card-foreground: var(--neutral-100);
+
+  --popover: #232220;
+  --popover-foreground: var(--neutral-100);
+
+  --surface-sunken: #131211;
+
+  --primary: var(--clay-400);
+  --primary-foreground: var(--clay-950);
+  --primary-hover: var(--clay-300);
+  --primary-subtle: #2e1a14;
+  --primary-subtle-foreground: var(--clay-200);
+
+  --secondary: #2a2825;
+  --secondary-foreground: var(--neutral-100);
+
+  --muted: #26241f;
+  --muted-foreground: var(--neutral-400);
+
+  --accent: #2a2825;
+  --accent-foreground: var(--neutral-100);
+
+  --destructive: #d93843;
+  --destructive-foreground: var(--neutral-0);
+  --destructive-subtle: #2b1417;
+  --destructive-subtle-foreground: #f5a3ab;
+
+  --success: #34c77b;
+  --success-foreground: #06281a;
+  --success-subtle: #12271c;
+  --success-subtle-foreground: #7ddcaa;
+
+  --warning: #e3a008;
+  --warning-foreground: #2a1c00;
+  --warning-subtle: #2a2011;
+  --warning-subtle-foreground: #f0c765;
+
+  --info: #6ba6e8;
+  --info-foreground: #0a1c2e;
+  --info-subtle: #141f2c;
+  --info-subtle-foreground: #a6cbf2;
+
+  --border: #302e2a;
+  --input: var(--neutral-600);
+  --ring: var(--clay-400);
+
+  --sidebar: #131211;
+  --sidebar-foreground: var(--neutral-400);
+  --sidebar-border: #282622;
+  --sidebar-accent: #232220;
+  --sidebar-accent-foreground: var(--neutral-100);
+  --sidebar-primary: var(--clay-400);
+  --sidebar-primary-foreground: var(--clay-950);
+  --sidebar-ring: var(--clay-400);
+
+  --chart-1: #e08a6e;
+  --chart-2: #4f9b82;
+  --chart-3: #d6a64a;
+  --chart-4: #8298be;
+  --chart-5: #b283a0;
+
+  --overlay-shadow-sm:
+    0 1px 2px -1px rgb(0 0 0 / 0.5), 0 4px 12px -3px rgb(0 0 0 / 0.55);
+  --overlay-shadow:
+    0 2px 4px -2px rgb(0 0 0 / 0.5), 0 16px 40px -12px rgb(0 0 0 / 0.7);
+}
+
+/* ---------------------------------------------------------------------------
+   Puente con Tailwind + capa 3 (tokens de componente)
+   Ver DESIGN.md § 2.3
+   --------------------------------------------------------------------------- */
 
 @theme inline {
-  --color-primary: #e2725b;
-  --color-primary-dim: #a0412d;
-  --color-primary-container: #ffac9b;
-  --color-on-primary: #ffffff;
-  --color-on-primary-container: #721f0f;
-  --color-secondary: #526351;
-  --color-secondary-container: #e3f6df;
-  --color-on-secondary-container: #4d5e4c;
-  --color-tertiary: #8d5011;
-  --color-tertiary-container: #feac67;
-  --color-on-tertiary-container: #5c2f00;
-  --color-background: #f9f9f7;
-  --color-surface: #f9f9f7;
-  --color-surface-bright: #f9f9f7;
-  --color-surface-dim: #d7dbd8;
-  --color-surface-container-lowest: #ffffff;
-  --color-surface-container-low: #f3f4f2;
-  --color-surface-container: #edeeec;
-  --color-surface-container-high: #e6e9e6;
-  --color-surface-container-highest: #e0e3e0;
-  --color-on-surface: #2f3332;
-  --color-on-surface-variant: #5c605e;
-  --color-outline: #787c79;
-  --color-outline-variant: #afb3b0;
-  --color-inverse-surface: #0d0f0e;
-  --color-inverse-on-surface: #9c9d9b;
-  --color-error: #ac3149;
-  --color-error-container: #f76a80;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
 
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-surface-sunken: var(--surface-sunken);
+
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-subtle: var(--primary-subtle);
+  --color-primary-subtle-foreground: var(--primary-subtle-foreground);
+
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-subtle: var(--destructive-subtle);
+  --color-destructive-subtle-foreground: var(--destructive-subtle-foreground);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-subtle: var(--success-subtle);
+  --color-success-subtle-foreground: var(--success-subtle-foreground);
+
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-subtle: var(--warning-subtle);
+  --color-warning-subtle-foreground: var(--warning-subtle-foreground);
+
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-info-subtle: var(--info-subtle);
+  --color-info-subtle-foreground: var(--info-subtle-foreground);
+
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-display:
+    var(--font-bricolage), var(--font-geist-sans), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
-  --radius-md: 0.375rem;
 
-  --font-headline: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-body: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
-  --font-label: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --shadow-overlay-sm: var(--overlay-shadow-sm);
+  --shadow-overlay: var(--overlay-shadow);
+
+  --spacing-control-sm: 2rem;
+  --spacing-control: 2.25rem;
+  --spacing-control-lg: 2.75rem;
+  --spacing-sidebar: 15.5rem;
+  --spacing-sidebar-collapsed: 3.5rem;
+  --spacing-header: 3.5rem;
+  --spacing-content: 75rem;
+
+  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
 }
 
-body {
-  min-height: max(884px, 100dvh);
-  font-family: var(--font-body);
+/* Radial cálido + grain — en el shell (no en body: el shell tapa el body) */
+@utility bg-atmosphere {
+  background-color: var(--background);
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
+    radial-gradient(
+      ellipse 100% 70% at 50% -10%,
+      color-mix(in srgb, var(--clay-200) 55%, transparent),
+      transparent 72%
+    );
+  background-attachment: fixed;
 }
 
-h1,
-h2,
-h3,
-h4 {
-  font-family: var(--font-headline);
+.dark .bg-atmosphere,
+html.dark .bg-atmosphere {
+  background-image:
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"),
+    radial-gradient(
+      ellipse 100% 70% at 50% -10%,
+      color-mix(in srgb, var(--clay-800) 28%, transparent),
+      transparent 72%
+    );
 }
 
-/* Debe usar esta fuente; si no, solo se leen los nombres (menu, add, …) */
-.material-symbols-outlined {
-  font-family: "Material Symbols Outlined";
-  font-style: normal;
-  font-weight: normal;
-  line-height: 1;
-  letter-spacing: normal;
-  text-transform: none;
-  display: inline-block;
-  white-space: nowrap;
-  word-wrap: normal;
-  direction: ltr;
-  font-variation-settings:
-    "FILL" 0,
-    "wght" 400,
-    "GRAD" 0,
-    "opsz" 24;
-  vertical-align: middle;
-  -webkit-font-smoothing: antialiased;
+/* ---------------------------------------------------------------------------
+   Escala tipográfica — DESIGN.md § 3.1
+   Cada utilidad fija familia, tamaño, interlineado, tracking y peso.
+   --------------------------------------------------------------------------- */
+
+@utility text-display-lg {
+  font-family: var(--font-display);
+  font-size: 2.5rem;
+  line-height: 2.75rem;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  font-optical-sizing: auto;
 }
 
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
+@utility text-display {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  line-height: 2.25rem;
+  letter-spacing: -0.018em;
+  font-weight: 700;
+  font-optical-sizing: auto;
 }
 
-.hide-scrollbar {
-  -ms-overflow-style: none;
+@utility text-greeting {
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  line-height: 1.75rem;
+  letter-spacing: -0.02em;
+  font-weight: 600;
+  font-optical-sizing: auto;
+}
+
+@utility text-h1 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.01em;
+  font-weight: 600;
+}
+
+@utility text-h2 {
+  font-family: var(--font-display);
+  font-size: 1.1875rem;
+  line-height: 1.625rem;
+  letter-spacing: -0.005em;
+  font-weight: 600;
+}
+
+@utility text-h3 {
+  font-size: 1rem;
+  line-height: 1.375rem;
+  font-weight: 600;
+}
+
+@utility text-body {
+  font-size: 0.875rem;
+  line-height: 1.3125rem;
+  font-weight: 400;
+}
+
+@utility text-body-sm {
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
+  font-weight: 400;
+}
+
+@utility text-label {
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-weight: 500;
+}
+
+@utility text-caption {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 400;
+}
+
+/* Único uso permitido de mayúsculas con tracking abierto: encabezados de tabla */
+@utility text-overline {
+  font-size: 0.6875rem;
+  line-height: 0.875rem;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+@utility scrollbar-none {
   scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
 }
 
-.pill-gradient {
-  background: linear-gradient(135deg, #a0412d 0%, #e2725b 100%);
+/* ---------------------------------------------------------------------------
+   Base
+   --------------------------------------------------------------------------- */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-size: 0.875rem;
+    line-height: 1.3125rem;
+    font-feature-settings: "cv11";
+  }
+
+  @keyframes metric-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .metric-enter {
+    animation: metric-enter 280ms var(--ease-enter) both;
+    animation-delay: var(--metric-delay, 0ms);
+  }
+
+  @keyframes cart-flash {
+    from {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 35%, transparent);
+    }
+    to {
+      border-color: var(--border);
+      box-shadow: none;
+    }
+  }
+
+  .product-flash {
+    animation: cart-flash 150ms var(--ease-enter);
+  }
+
+  /* Las cifras nunca bailan al actualizarse */
+  .font-mono,
+  [class*="tabular"] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background-color: var(--primary-subtle);
+    color: var(--primary-subtle-foreground);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

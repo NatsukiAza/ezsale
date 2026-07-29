@@ -1,24 +1,32 @@
 import type { Metadata } from "next";
-import { SiteFooter } from "@/app/components/site-footer";
-import { Inter, Manrope } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/app/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
   subsets: ["latin"],
-  weight: ["400", "500", "700", "800"],
   display: "swap",
 });
 
-const inter = Inter({
-  variable: "--font-inter",
+const geistSans = Geist({
+  variable: "--font-geist-sans",
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+});
+
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "EZSale - Gastronomy Management System",
-  description: "Sistema de gestión gastronómica para ventas, productos y equipo.",
+  title: "EZSale",
+  description:
+    "Sistema de punto de venta para comercios: ventas, productos, reportes y equipo.",
 };
 
 export default function RootLayout({
@@ -29,19 +37,19 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`light ${manrope.variable} ${inter.variable} antialiased`}
+      suppressHydrationWarning
+      className={`${bricolage.variable} ${geistSans.variable} ${geistMono.variable} antialiased`}
     >
-      <head>
-        {/* Google no expone Material Symbols en next/font */}
-        {/* eslint-disable-next-line @next/next/no-page-custom-font */}
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=swap"
-        />
-      </head>
-      <body className="min-h-dvh flex flex-col bg-surface font-body text-on-surface">
-        <div className="flex min-h-dvh flex-1 flex-col">{children}</div>
-        <SiteFooter />
+      <body className="font-sans">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+          <Toaster position="top-right" />
+        </ThemeProvider>
       </body>
     </html>
   );

@@ -10,7 +10,7 @@ type PerfilBasico = {
 };
 
 /**
- * Dedup en un mismo request de React: layout (footer) + página pueden compartir
+ * Dedup en un mismo request de React: layout + página pueden compartir
  * la misma sesión y perfil sin repetir round-trips a Supabase.
  */
 export const getServerSession = cache(
@@ -34,10 +34,11 @@ export const getPerfilTienda = cache(
     supabase: SupabaseClient | null;
     user: User | null;
     perfil: PerfilBasico | null;
+    tiendaNombre: string | null;
   }> => {
     const { supabase, user } = await getServerSession();
     if (!supabase || !user) {
-      return { supabase, user, perfil: null };
+      return { supabase, user, perfil: null, tiendaNombre: null };
     }
     const { data: perfil } = await supabase
       .from("perfiles")
@@ -45,17 +46,26 @@ export const getPerfilTienda = cache(
       .eq("id", user.id)
       .maybeSingle();
     if (!perfil?.id_tienda) {
-      return { supabase, user, perfil: null };
+      return { supabase, user, perfil: null, tiendaNombre: null };
     }
+
+    const idTienda = perfil.id_tienda as string;
+    const { data: tienda } = await supabase
+      .from("tiendas")
+      .select("nombre")
+      .eq("id", idTienda)
+      .maybeSingle();
+
     return {
       supabase,
       user,
       perfil: {
-        id_tienda: perfil.id_tienda as string,
+        id_tienda: idTienda,
         rol: perfil.rol as string,
         nombre: (perfil.nombre as string | null) ?? null,
         apellido: (perfil.apellido as string | null) ?? null,
       },
+      tiendaNombre: (tienda?.nombre as string | null) ?? null,
     };
   },
 );

@@ -1,5 +1,35 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  GATE_COOKIE,
+  GATE_TTL_MS,
+  parseGate,
+  serializeGate,
+} from "@/lib/supabase/gate-cookie";
+
+function needsPerfilGate(path: string, isProtected: boolean, isAuthPage: boolean) {
+  return (
+    isProtected ||
+    isAuthPage ||
+    path.startsWith("/auth/cambiar-password") ||
+    path.startsWith("/reports") ||
+    path.startsWith("/team")
+  );
+}
+
+function redirectWithCookies(
+  request: NextRequest,
+  pathname: string,
+  from: NextResponse,
+) {
+  const u = request.nextUrl.clone();
+  u.pathname = pathname;
+  const redirect = NextResponse.redirect(u);
+  from.cookies.getAll().forEach((c) => {
+    redirect.cookies.set(c.name, c.value);
+  });
+  return redirect;
+}
 
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
@@ -17,6 +47,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/reports") ||
     path.startsWith("/team") ||
     path.startsWith("/registro/completar");
+  const isAuthPage = path === "/" || path === "/registro";
 
   if (!url || !key) {
     if (isProtected) {
@@ -49,35 +80,60 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (path.startsWith("/auth/cambiar-password") && !user) {
-    const u = request.nextUrl.clone();
-    u.pathname = "/";
-    return NextResponse.redirect(u);
+    return redirectWithCookies(request, "/", supabaseResponse);
   }
 
   let debeCambiarPassword = false;
   let esAdmin = false;
-  if (user) {
-    const { data: perfil } = await supabase
-      .from("perfiles")
-      .select("debe_cambiar_password, rol")
-      .eq("id", user.id)
-      .maybeSingle();
-    debeCambiarPassword = perfil?.debe_cambiar_password === true;
-    esAdmin = perfil?.rol === "admin";
+
+  if (user && needsPerfilGate(path, isProtected, isAuthPage)) {
+    const cached = parseGate(request.cookies.get(GATE_COOKIE)?.value);
+    if (cached) {
+      debeCambiarPassword = cached.debeCambiarPassword;
+      esAdmin = cached.rol === "admin";
+    } else {
+      const { data: perfil } = await supabase
+        .from("perfiles")
+        .select("debe_cambiar_password, rol")
+        .eq("id", user.id)
+        .maybeSingle();
+      debeCambiarPassword = perfil?.debe_cambiar_password === true;
+      esAdmin = perfil?.rol === "admin";
+      supabaseResponse.cookies.set(
+        GATE_COOKIE,
+        serializeGate({
+          debeCambiarPassword,
+          rol: (perfil?.rol as string) ?? "normal",
+        }),
+        {
+          path: "/",
+          maxAge: Math.floor(GATE_TTL_MS / 1000),
+          sameSite: "lax",
+          httpOnly: false,
+          secure: process.env.NODE_ENV === "production",
+        },
+      );
+    }
+  } else if (!user) {
+    supabaseResponse.cookies.set(GATE_COOKIE, "", {
+      path: "/",
+      maxAge: 0,
+      sameSite: "lax",
+    });
   }
 
   if (debeCambiarPassword) {
     const allowed =
       path.startsWith("/auth/cambiar-password") || path.startsWith("/auth/callback");
     if (!allowed) {
-      const u = request.nextUrl.clone();
-      u.pathname = "/auth/cambiar-password";
-      return NextResponse.redirect(u);
+      return redirectWithCookies(
+        request,
+        "/auth/cambiar-password",
+        supabaseResponse,
+      );
     }
   } else if (path.startsWith("/auth/cambiar-password") && user) {
-    const u = request.nextUrl.clone();
-    u.pathname = "/dashboard";
-    return NextResponse.redirect(u);
+    return redirectWithCookies(request, "/dashboard", supabaseResponse);
   }
 
   if (
@@ -86,23 +142,15 @@ export async function updateSession(request: NextRequest) {
     !esAdmin &&
     (path.startsWith("/reports") || path.startsWith("/team"))
   ) {
-    const u = request.nextUrl.clone();
-    u.pathname = "/dashboard";
-    return NextResponse.redirect(u);
+    return redirectWithCookies(request, "/dashboard", supabaseResponse);
   }
 
-  const isAuthPage = path === "/" || path === "/registro";
-
   if (isProtected && !user) {
-    const u = request.nextUrl.clone();
-    u.pathname = "/";
-    return NextResponse.redirect(u);
+    return redirectWithCookies(request, "/", supabaseResponse);
   }
 
   if (isAuthPage && user) {
-    const u = request.nextUrl.clone();
-    u.pathname = "/dashboard";
-    return NextResponse.redirect(u);
+    return redirectWithCookies(request, "/dashboard", supabaseResponse);
   }
 
   return supabaseResponse;
