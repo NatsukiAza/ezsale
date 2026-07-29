@@ -5,6 +5,11 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { FormField } from "@/components/app/form-field";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function LoginForm() {
   const router = useRouter();
@@ -18,7 +23,9 @@ export function LoginForm() {
     setError(null);
     const supabase = createClient();
     if (!supabase) {
-      setError("Supabase no está configurado. Añade las variables en .env.local.");
+      setError(
+        "Supabase no está configurado. Añade las variables en .env.local.",
+      );
       return;
     }
     setLoading(true);
@@ -55,22 +62,17 @@ export function LoginForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-md space-y-5 rounded-[2rem] border border-stone-200/80 bg-surface-container-lowest/90 p-8 shadow-xl backdrop-blur-sm"
+      className="w-full max-w-[26.25rem] space-y-5 rounded-lg border border-border bg-card p-6"
     >
-      <div className="space-y-1 text-center">
-        <h2 className="font-headline text-2xl font-extrabold text-on-surface">
-          Iniciar sesión
-        </h2>
-        <p className="text-sm text-on-surface-variant">
-          Accede al panel de tu tienda asociada
+      <div className="space-y-1">
+        <h2 className="text-h1">Iniciar sesión</h2>
+        <p className="text-body-sm text-muted-foreground">
+          Accedé al panel de tu tienda
         </p>
       </div>
 
-      <div className="space-y-2">
-        <label htmlFor="login-email" className="text-sm font-medium text-on-surface">
-          Correo
-        </label>
-        <input
+      <FormField id="login-email" label="Correo" error={null}>
+        <Input
           id="login-email"
           name="email"
           type="email"
@@ -78,16 +80,12 @@ export function LoginForm() {
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 text-on-surface outline-none ring-1 ring-stone-200/80 transition-all focus:ring-2 focus:ring-primary/40"
           placeholder="tu@email.com"
         />
-      </div>
+      </FormField>
 
-      <div className="space-y-2">
-        <label htmlFor="login-password" className="text-sm font-medium text-on-surface">
-          Contraseña
-        </label>
-        <input
+      <FormField id="login-password" label="Contraseña">
+        <Input
           id="login-password"
           name="password"
           type="password"
@@ -95,27 +93,26 @@ export function LoginForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 text-on-surface outline-none ring-1 ring-stone-200/80 transition-all focus:ring-2 focus:ring-primary/40"
         />
-      </div>
+      </FormField>
 
       {error ? (
-        <p className="rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-2xl bg-gradient-to-br from-primary to-primary-dim py-4 font-bold text-on-primary shadow-lg shadow-primary/25 transition-transform active:scale-[0.99] disabled:opacity-60"
-      >
-        {loading ? "Entrando…" : "Entrar al panel"}
-      </button>
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? <Loader2 className="animate-spin" /> : null}
+        {loading ? "Entrando…" : "Entrar"}
+      </Button>
 
-      <p className="text-center text-sm text-on-surface-variant">
+      <p className="text-center text-body-sm text-muted-foreground">
         ¿Primera vez?{" "}
-        <Link href="/registro" className="font-semibold text-primary hover:underline">
+        <Link
+          href="/registro"
+          className="font-medium text-primary hover:underline"
+        >
           Crear tienda y cuenta
         </Link>
       </p>

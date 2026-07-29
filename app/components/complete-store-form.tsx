@@ -4,6 +4,11 @@ import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { FormField } from "@/components/app/form-field";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function CompleteStoreForm() {
   const router = useRouter();
@@ -23,11 +28,14 @@ export function CompleteStoreForm() {
     }
     setLoading(true);
 
-    const { error: rpcError } = await supabase.rpc("create_tienda_y_perfil_admin", {
-      p_nombre_tienda: nombreTienda,
-      p_nombre: nombre,
-      p_apellido: apellido,
-    });
+    const { error: rpcError } = await supabase.rpc(
+      "create_tienda_y_perfil_admin",
+      {
+        p_nombre_tienda: nombreTienda,
+        p_nombre: nombre,
+        p_apellido: apellido,
+      },
+    );
 
     setLoading(false);
 
@@ -43,74 +51,55 @@ export function CompleteStoreForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-auto w-full max-w-lg space-y-4xl border border-stone-200/80 bg-surface-container-lowest p-8 shadow-xl"
+      className="mx-auto w-full max-w-[26.25rem] space-y-5 rounded-lg border border-border bg-card p-6"
     >
-      <div className="space-y-1 text-center">
-        <h1 className="font-headline text-2xl font-extrabold text-on-surface">
-          Completar datos de tu tienda
-        </h1>
-        <p className="text-sm text-on-surface-variant">
-          Tu cuenta ya existe; crea la tienda y tu perfil de administrador.
+      <div className="space-y-1">
+        <h1 className="text-h1">Completar datos de tu tienda</h1>
+        <p className="text-body-sm text-muted-foreground">
+          Tu cuenta ya existe; creá la tienda y tu perfil de administrador.
         </p>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-sm font-medium" htmlFor="cs-nombre-tienda">
-          Nombre de la tienda *
-        </label>
-        <input
+      <FormField id="cs-nombre-tienda" label="Nombre de la tienda">
+        <Input
           id="cs-nombre-tienda"
           required
           value={nombreTienda}
           onChange={(e) => setNombreTienda(e.target.value)}
-          className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/40"
         />
-      </div>
+      </FormField>
+
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="cs-nombre">
-            Tu nombre *
-          </label>
-          <input
+        <FormField id="cs-nombre" label="Tu nombre">
+          <Input
             id="cs-nombre"
             required
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
-            className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/40"
           />
-        </div>
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="cs-apellido">
-            Apellido
-          </label>
-          <input
+        </FormField>
+        <FormField id="cs-apellido" label="Apellido">
+          <Input
             id="cs-apellido"
             value={apellido}
             onChange={(e) => setApellido(e.target.value)}
-            className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 outline-none ring-1 ring-stone-200/80 focus:ring-2 focus:ring-primary/40"
           />
-        </div>
+        </FormField>
       </div>
 
       {error ? (
-        <p
-          className="rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error"
-          role="alert"
-        >
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-2xl bg-linear-to-br from-primary to-primary-dim py-4 font-bold text-on-primary shadow-lg disabled:opacity-60"
-      >
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? <Loader2 className="animate-spin" /> : null}
         {loading ? "Guardando…" : "Crear tienda y continuar"}
-      </button>
+      </Button>
 
-      <p className="text-center text-sm">
-        <Link href="/" className="text-primary hover:underline">
+      <p className="text-center text-body-sm">
+        <Link href="/" className="font-medium text-primary hover:underline">
           Volver al inicio
         </Link>
       </p>

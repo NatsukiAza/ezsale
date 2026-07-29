@@ -1,9 +1,15 @@
 "use client";
 
 import { mapAuthErrorMessage } from "@/lib/auth-errors";
+import { clearGateCookieClient } from "@/lib/supabase/gate-cookie";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
+import { FormField } from "@/components/app/form-field";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export function ChangePasswordForm() {
   const router = useRouter();
@@ -58,6 +64,7 @@ export function ChangePasswordForm() {
       return;
     }
 
+    clearGateCookieClient();
     setLoading(false);
     router.push("/dashboard");
     router.refresh();
@@ -66,6 +73,7 @@ export function ChangePasswordForm() {
   async function handleSignOut() {
     const supabase = createClient();
     if (supabase) await supabase.auth.signOut();
+    clearGateCookieClient();
     router.push("/");
     router.refresh();
   }
@@ -73,23 +81,18 @@ export function ChangePasswordForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-md space-y-5 rounded-4xl border border-stone-200/80 bg-surface-container-lowest/90 p-8 shadow-xl backdrop-blur-sm"
+      className="w-full max-w-[26.25rem] space-y-5 rounded-lg border border-border bg-card p-6"
     >
-      <div className="space-y-1 text-center">
-        <h2 className="font-headline text-2xl font-extrabold text-on-surface">
-          Nueva contraseña
-        </h2>
-        <p className="text-sm text-on-surface-variant">
-          Es la primera vez que entrás con una cuenta invitada. Elegí una contraseña
-          definitiva para continuar.
+      <div className="space-y-1">
+        <h2 className="text-h1">Nueva contraseña</h2>
+        <p className="text-body-sm text-muted-foreground">
+          Es la primera vez que entrás con una cuenta invitada. Elegí una
+          contraseña definitiva para continuar.
         </p>
       </div>
 
-      <div className="space-y-2">
-        <label htmlFor="np-password" className="text-sm font-medium text-on-surface">
-          Nueva contraseña
-        </label>
-        <input
+      <FormField id="np-password" label="Nueva contraseña">
+        <Input
           id="np-password"
           name="password"
           type="password"
@@ -97,15 +100,11 @@ export function ChangePasswordForm() {
           required
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 text-on-surface outline-none ring-1 ring-stone-200/80 transition-all focus:ring-2 focus:ring-primary/40"
         />
-      </div>
+      </FormField>
 
-      <div className="space-y-2">
-        <label htmlFor="np-confirm" className="text-sm font-medium text-on-surface">
-          Confirmar contraseña
-        </label>
-        <input
+      <FormField id="np-confirm" label="Confirmar contraseña">
+        <Input
           id="np-confirm"
           name="confirm"
           type="password"
@@ -113,29 +112,25 @@ export function ChangePasswordForm() {
           required
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}
-          className="w-full rounded-xl border-none bg-surface-container-low px-4 py-3 text-on-surface outline-none ring-1 ring-stone-200/80 transition-all focus:ring-2 focus:ring-primary/40"
         />
-      </div>
+      </FormField>
 
       {error ? (
-        <p className="rounded-lg bg-error-container/30 px-3 py-2 text-sm text-error" role="alert">
-          {error}
-        </p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full rounded-2xl bg-linear-to-br from-primary to-primary-dim py-4 font-bold text-on-primary shadow-lg shadow-primary/25 transition-transform active:scale-[0.99] disabled:opacity-60"
-      >
+      <Button type="submit" className="w-full" disabled={loading}>
+        {loading ? <Loader2 className="animate-spin" /> : null}
         {loading ? "Guardando…" : "Guardar y continuar"}
-      </button>
+      </Button>
 
-      <p className="text-center text-sm text-on-surface-variant">
+      <p className="text-center text-body-sm">
         <button
           type="button"
           onClick={() => void handleSignOut()}
-          className="font-semibold text-primary hover:underline"
+          className="font-medium text-primary hover:underline"
         >
           Cerrar sesión
         </button>
