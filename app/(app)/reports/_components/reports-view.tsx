@@ -54,6 +54,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { formatArs } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Period = "day" | "month" | "year";
@@ -71,6 +72,7 @@ type VentaRow = {
   id: string;
   fecha_venta: string;
   monto_total: number | string;
+  descuento_monto?: number | string | null;
   id_usuario: string;
   id_medio_pago: string;
   medios_pago: { nombre: string } | { nombre: string }[] | null;
@@ -220,6 +222,7 @@ export function ReportsView({
   const [editingVenta, setEditingVenta] = useState<VentaRow | null>(null);
   const [editLines, setEditLines] = useState<Record<string, EditableLine>>({});
   const [editMedioId, setEditMedioId] = useState<string | null>(null);
+  const [editDescuentoMontoRaw, setEditDescuentoMontoRaw] = useState("");
   const [productSearch, setProductSearch] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
@@ -290,6 +293,7 @@ export function ReportsView({
         id,
         fecha_venta,
         monto_total,
+        descuento_monto,
         id_usuario,
         id_medio_pago,
         medios_pago ( nombre )
@@ -315,6 +319,7 @@ export function ReportsView({
         id: row.id as string,
         fecha_venta: row.fecha_venta as string,
         monto_total: row.monto_total as number | string,
+        descuento_monto: (row.descuento_monto as number | string | null) ?? 0,
         id_usuario: row.id_usuario as string,
         id_medio_pago: row.id_medio_pago as string,
         medios_pago: row.medios_pago as VentaRow["medios_pago"],
@@ -469,6 +474,8 @@ export function ReportsView({
     }
     setEditLines(lines);
     setEditMedioId(v.id_medio_pago);
+    const descMonto = Number(v.descuento_monto ?? 0);
+    setEditDescuentoMontoRaw(descMonto > 0 ? String(descMonto) : "");
     setProductSearch("");
     setEditError(null);
     setEditingVenta({ ...v, detalle_ventas: detalle });
@@ -479,6 +486,7 @@ export function ReportsView({
     setEditingVenta(null);
     setEditLines({});
     setEditMedioId(null);
+    setEditDescuentoMontoRaw("");
     setProductSearch("");
     setEditError(null);
   }
@@ -566,6 +574,7 @@ export function ReportsView({
       p_id_venta: editingVenta.id,
       p_id_medio_pago: editMedioId,
       p_items: payload,
+      p_descuento_monto: editDescuentoMonto,
     });
 
     if (error) {
@@ -579,6 +588,7 @@ export function ReportsView({
     setEditingVenta(null);
     setEditLines({});
     setEditMedioId(null);
+    setEditDescuentoMontoRaw("");
     setProductSearch("");
   }
 
@@ -590,7 +600,7 @@ export function ReportsView({
     [editLines],
   );
 
-  const editTotal = useMemo(
+  const editSubtotal = useMemo(
     () =>
       editLineList.reduce(
         (s, l) =>
@@ -601,6 +611,17 @@ export function ReportsView({
         0,
       ),
     [editLineList],
+  );
+
+  const editDescuentoMonto = useMemo(() => {
+    const n = parseFloat(editDescuentoMontoRaw.trim().replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(n, editSubtotal);
+  }, [editDescuentoMontoRaw, editSubtotal]);
+
+  const editTotal = useMemo(
+    () => Math.max(0, editSubtotal - editDescuentoMonto),
+    [editSubtotal, editDescuentoMonto],
   );
 
   const productosDisponibles = useMemo(() => {
@@ -871,7 +892,21 @@ export function ReportsView({
                           {medioNombre(v)}
                         </DataTableCell>
                         <DataTableCell className="text-right">
-                          <Money value={Number(v.monto_total)} />
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span
+                              className={cn(
+                                Number(v.descuento_monto ?? 0) > 0 &&
+                                  "text-amber-700 dark:text-amber-400",
+                              )}
+                            >
+                              <Money value={Number(v.monto_total)} />
+                            </span>
+                            {Number(v.descuento_monto ?? 0) > 0 ? (
+                              <span className="text-caption text-amber-700 dark:text-amber-400">
+                                −{formatArs(Number(v.descuento_monto))}
+                              </span>
+                            ) : null}
+                          </div>
                         </DataTableCell>
                         <DataTableCell className="text-right">
                           <Button
@@ -932,6 +967,16 @@ export function ReportsView({
                                     </span>
                                   </li>
                                 ))}
+                                {Number(v.descuento_monto ?? 0) > 0 ? (
+                                  <li className="flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-1.5 text-body-sm text-amber-700 dark:text-amber-400">
+                                    <span className="font-medium">
+                                      Descuento fijo
+                                    </span>
+                                    <span className="font-mono font-medium tabular-nums">
+                                      −{formatArs(Number(v.descuento_monto))}
+                                    </span>
+                                  </li>
+                                ) : null}
                               </ul>
                             )}
                           </DataTableCell>
@@ -1157,11 +1202,54 @@ export function ReportsView({
               )}
             </section>
 
-            <div className="flex items-center justify-between border-t border-border pt-4">
-              <span className="text-label text-muted-foreground">Total</span>
-              <span className="font-display text-h1 tabular-nums">
-                <Money value={editTotal} display alwaysVisible />
-              </span>
+            <div className="space-y-2 border-t border-border pt-4">
+              <div className="flex items-center justify-between gap-2 text-body-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="font-mono tabular-nums">
+                  <Money value={editSubtotal} alwaysVisible />
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2">
+                <Label
+                  htmlFor="edit-descuento-monto"
+                  className="text-body-sm text-muted-foreground"
+                >
+                  Descuento ($)
+                </Label>
+                <Input
+                  id="edit-descuento-monto"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={editSubtotal > 0 ? editSubtotal : undefined}
+                  step="0.01"
+                  value={editDescuentoMontoRaw}
+                  placeholder="0"
+                  onChange={(e) => setEditDescuentoMontoRaw(e.target.value)}
+                  className="h-8 w-28 text-right font-mono tabular-nums"
+                  aria-label="Descuento en pesos sobre la venta"
+                />
+              </div>
+              {editDescuentoMonto > 0 ? (
+                <div className="flex items-center justify-between gap-2 text-body-sm text-amber-700 dark:text-amber-400">
+                  <span>Descuento aplicado</span>
+                  <span className="font-mono tabular-nums">
+                    −{formatArs(editDescuentoMonto)}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-label text-muted-foreground">Total</span>
+                <span
+                  className={cn(
+                    "font-display text-h1 tabular-nums",
+                    editDescuentoMonto > 0 &&
+                      "text-amber-700 dark:text-amber-400",
+                  )}
+                >
+                  <Money value={editTotal} display alwaysVisible />
+                </span>
+              </div>
             </div>
 
             {editError ? (

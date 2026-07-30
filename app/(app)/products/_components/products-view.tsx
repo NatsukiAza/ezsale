@@ -151,6 +151,11 @@ export function ProductsView({
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  /** Modo planilla: editar precios en masa y guardar en un solo RPC. */
+  const [priceEditMode, setPriceEditMode] = useState(false);
+  const [priceDrafts, setPriceDrafts] = useState<Record<string, string>>({});
+  const [savingPrices, setSavingPrices] = useState(false);
+
   const deferredSearchQuery = useDeferredValue(searchQuery);
 
   const canSubmitProducto = useMemo(() => {
@@ -197,9 +202,41 @@ export function ProductsView({
   }, [productosFiltrados.length]);
 
   const productosPaginados = useMemo(() => {
+    if (priceEditMode) return productosFiltrados;
     const start = (currentProductPage - 1) * PRODUCTOS_POR_PAGINA;
     return productosFiltrados.slice(start, start + PRODUCTOS_POR_PAGINA);
-  }, [productosFiltrados, currentProductPage]);
+  }, [productosFiltrados, currentProductPage, priceEditMode]);
+
+  const precioOriginalById = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of productos) map.set(p.id, p.precio_actual);
+    return map;
+  }, [productos]);
+
+  const changedPriceItems = useMemo(() => {
+    const items: { id: string; precio_actual: number }[] = [];
+    for (const [id, raw] of Object.entries(priceDrafts)) {
+      const original = precioOriginalById.get(id);
+      if (original === undefined) continue;
+      const num = parseFloat(raw.trim().replace(",", "."));
+      if (!Number.isFinite(num) || num < 0) continue;
+      if (num !== original) {
+        items.push({ id, precio_actual: num });
+      }
+    }
+    return items;
+  }, [priceDrafts, precioOriginalById]);
+
+  const hasInvalidPriceDraft = useMemo(() => {
+    for (const [id, raw] of Object.entries(priceDrafts)) {
+      if (!precioOriginalById.has(id)) continue;
+      const trimmed = raw.trim();
+      if (!trimmed) return true;
+      const num = parseFloat(trimmed.replace(",", "."));
+      if (!Number.isFinite(num) || num < 0) return true;
+    }
+    return false;
+  }, [priceDrafts, precioOriginalById]);
 
   const loadData = useCallback(async () => {
     const supabase = createClient();
@@ -283,6 +320,56 @@ export function ProductsView({
     }
   }, [currentProductPage, totalProductPages]);
 
+  function enterPriceEditMode() {
+    if (!isAdmin) return;
+    const drafts: Record<string, string> = {};
+    for (const p of productos) {
+      drafts[p.id] = String(p.precio_actual);
+    }
+    setPriceDrafts(drafts);
+    setPriceEditMode(true);
+  }
+
+  function exitPriceEditMode() {
+    setPriceEditMode(false);
+    setPriceDrafts({});
+  }
+
+  function setPriceDraft(id: string, value: string) {
+    setPriceDrafts((prev) => ({ ...prev, [id]: value }));
+  }
+
+  async function handleSavePrices() {
+    if (!isAdmin || changedPriceItems.length === 0 || hasInvalidPriceDraft) {
+      return;
+    }
+    const supabase = createClient();
+    if (!supabase) {
+      toast.error("Supabase no está configurado.");
+      return;
+    }
+
+    setSavingPrices(true);
+    const { error } = await supabase.rpc("actualizar_precios_productos", {
+      p_items: changedPriceItems,
+    });
+    setSavingPrices(false);
+
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+
+    toast.success(
+      changedPriceItems.length === 1
+        ? "1 precio actualizado."
+        : `${changedPriceItems.length} precios actualizados.`,
+    );
+    exitPriceEditMode();
+    setLoadingList(true);
+    await loadData();
+  }
+
   function selectTab(tab: string) {
     setActiveTab(tab as ActiveTab);
     setModalOpen(false);
@@ -290,6 +377,7 @@ export function ProductsView({
     setCurrentProductPage(1);
     if (tab === "categorias") {
       setFilterCategoriaId(null);
+      exitPriceEditMode();
     }
   }
 
@@ -495,15 +583,41 @@ export function ProductsView({
     activeTab === "productos" ? "Nuevo producto" : "Nueva categoría";
 
   return (
-    <div className="pb-10">
+    <div className={priceEditMode ? "pb-24" : "pb-10"}>
       <PageHeader
         title="Productos"
         description="Administrá el catálogo y organizá tus categorías."
         actions={
-          <Button onClick={openCreateModal}>
-            <Plus />
-            {nuevoLabel}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && activeTab === "productos" ? (
+              priceEditMode ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={exitPriceEditMode}
+                  disabled={savingPrices}
+                >
+                  Cancelar
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={enterPriceEditMode}
+                  disabled={productos.length === 0}
+                >
+                  <Pencil />
+                  Editar precios
+                </Button>
+              )
+            ) : null}
+            {!priceEditMode ? (
+              <Button onClick={openCreateModal}>
+                <Plus />
+                {nuevoLabel}
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -619,8 +733,18 @@ export function ProductsView({
                     </DataTableRow>
                   </DataTableHeader>
                   <DataTableBody>
-                    {productosPaginados.map((p) => (
-                      <DataTableRow key={p.id}>
+                    {productosPaginados.map((p) => {
+                      const draft = priceDrafts[p.id] ?? String(p.precio_actual);
+                      const draftNum = parseFloat(draft.trim().replace(",", "."));
+                      const priceChanged =
+                        priceEditMode &&
+                        Number.isFinite(draftNum) &&
+                        draftNum !== p.precio_actual;
+                      return (
+                      <DataTableRow
+                        key={p.id}
+                        className={priceChanged ? "bg-amber-50/60 dark:bg-amber-950/20" : undefined}
+                      >
                         <DataTableCell className="font-medium">
                           {p.nombre}
                         </DataTableCell>
@@ -628,10 +752,26 @@ export function ProductsView({
                           {p.categoriaNombre ?? "—"}
                         </DataTableCell>
                         <DataTableCell className="text-right">
-                          <Money value={p.precio_actual} />
+                          {priceEditMode ? (
+                            <Input
+                              type="number"
+                              inputMode="decimal"
+                              min={0}
+                              step="0.01"
+                              value={draft}
+                              onChange={(e) =>
+                                setPriceDraft(p.id, e.target.value)
+                              }
+                              className="ml-auto h-8 w-28 text-right font-mono tabular-nums"
+                              aria-label={`Precio de ${p.nombre}`}
+                              disabled={savingPrices}
+                            />
+                          ) : (
+                            <Money value={p.precio_actual} />
+                          )}
                         </DataTableCell>
                         <DataTableCell className="text-right">
-                          {isAdmin ? (
+                          {isAdmin && !priceEditMode ? (
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button
@@ -664,11 +804,13 @@ export function ProductsView({
                           ) : null}
                         </DataTableCell>
                       </DataTableRow>
-                    ))}
+                      );
+                    })}
                   </DataTableBody>
                 </DataTable>
 
-                {productosFiltrados.length > PRODUCTOS_POR_PAGINA ? (
+                {!priceEditMode &&
+                productosFiltrados.length > PRODUCTOS_POR_PAGINA ? (
                   <div className="flex items-center justify-center gap-2">
                     <Button
                       type="button"
@@ -858,6 +1000,43 @@ export function ProductsView({
         loading={deleting}
         onConfirm={performDelete}
       />
+
+      {priceEditMode ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 px-4 py-3 shadow-lg backdrop-blur-sm">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3">
+            <p className="text-body-sm text-muted-foreground">
+              {hasInvalidPriceDraft
+                ? "Hay precios inválidos. Corregilos antes de guardar."
+                : changedPriceItems.length === 0
+                  ? "Sin cambios todavía."
+                  : changedPriceItems.length === 1
+                    ? "1 precio modificado"
+                    : `${changedPriceItems.length} precios modificados`}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={exitPriceEditMode}
+                disabled={savingPrices}
+              >
+                Descartar
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleSavePrices()}
+                disabled={
+                  savingPrices ||
+                  changedPriceItems.length === 0 ||
+                  hasInvalidPriceDraft
+                }
+              >
+                {savingPrices ? "Guardando…" : "Guardar"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

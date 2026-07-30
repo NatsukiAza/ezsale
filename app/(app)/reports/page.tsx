@@ -33,6 +33,7 @@ export default async function ReportsPage() {
         id,
         fecha_venta,
         monto_total,
+        descuento_monto,
         id_usuario,
         id_medio_pago,
         medios_pago ( nombre )
@@ -58,6 +59,7 @@ export default async function ReportsPage() {
     id: row.id as string,
     fecha_venta: row.fecha_venta as string,
     monto_total: row.monto_total as number | string,
+    descuento_monto: (row.descuento_monto as number | string | null) ?? 0,
     id_usuario: row.id_usuario as string,
     id_medio_pago: row.id_medio_pago as string,
     medios_pago: row.medios_pago as
