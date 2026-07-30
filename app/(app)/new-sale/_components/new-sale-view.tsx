@@ -102,6 +102,9 @@ function iconForMedioPago(nombre: string) {
 
 function CartPanel({
   cartLines,
+  cartSubtotal,
+  descuentoMonto,
+  setDescuentoMontoRaw,
   cartTotal,
   cartItemCount,
   mediosPago,
@@ -115,6 +118,9 @@ function CartPanel({
   onRegister,
 }: {
   cartLines: CartLine[];
+  cartSubtotal: number;
+  descuentoMonto: number;
+  setDescuentoMontoRaw: (raw: string) => void;
   cartTotal: number;
   cartItemCount: number;
   mediosPago: MedioPagoRow[];
@@ -250,11 +256,54 @@ function CartPanel({
       </div>
 
       <div className="shrink-0 space-y-3 border-t border-border bg-card p-4">
-        <div className="flex flex-col gap-1">
-          <span className="text-label text-muted-foreground">Total</span>
-          <span className="text-display tabular-nums tracking-tight">
-            {formatArs(cartTotal)}
-          </span>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-2 text-body-sm">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="font-mono tabular-nums">
+              {formatArs(cartSubtotal)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-2">
+            <label
+              htmlFor="descuento-monto"
+              className="text-body-sm text-muted-foreground"
+            >
+              Descuento ($)
+            </label>
+            <Input
+              id="descuento-monto"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={cartSubtotal > 0 ? cartSubtotal : undefined}
+              step="0.01"
+              value={descuentoMonto === 0 ? "" : String(descuentoMonto)}
+              placeholder="0"
+              disabled={isBusy || cartLines.length === 0}
+              onChange={(e) => setDescuentoMontoRaw(e.target.value)}
+              className="h-8 w-28 text-right font-mono tabular-nums"
+              aria-label="Descuento en pesos sobre la venta"
+            />
+          </div>
+          {descuentoMonto > 0 ? (
+            <div className="flex items-center justify-between gap-2 text-body-sm text-amber-700 dark:text-amber-400">
+              <span>Descuento aplicado</span>
+              <span className="font-mono tabular-nums">
+                −{formatArs(descuentoMonto)}
+              </span>
+            </div>
+          ) : null}
+          <div className="flex flex-col gap-0.5 border-t border-border pt-2">
+            <span className="text-label text-muted-foreground">Total</span>
+            <span
+              className={cn(
+                "text-display tabular-nums tracking-tight",
+                descuentoMonto > 0 && "text-amber-700 dark:text-amber-400",
+              )}
+            >
+              {formatArs(cartTotal)}
+            </span>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -352,6 +401,7 @@ export function NewSaleView({
     PRODUCTOS_POR_PAGINA_MOBILE,
   );
   const [cart, setCart] = useState<Record<string, CartLine>>({});
+  const [descuentoMontoRaw, setDescuentoMontoRaw] = useState("");
   const [selectedMedioId, setSelectedMedioId] = useState<string | null>(
     () => initialMedios[0]?.id ?? null,
   );
@@ -371,9 +421,20 @@ export function NewSaleView({
     [cart],
   );
 
-  const cartTotal = useMemo(
+  const cartSubtotal = useMemo(
     () => cartLines.reduce((s, l) => s + subtotalLinea(l), 0),
     [cartLines],
+  );
+
+  const descuentoMonto = useMemo(() => {
+    const n = parseFloat(descuentoMontoRaw.trim().replace(",", "."));
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return Math.min(n, cartSubtotal);
+  }, [descuentoMontoRaw, cartSubtotal]);
+
+  const cartTotal = useMemo(
+    () => Math.max(0, cartSubtotal - descuentoMonto),
+    [cartSubtotal, descuentoMonto],
   );
 
   const cartItemCount = useMemo(
@@ -525,6 +586,7 @@ export function NewSaleView({
     const { error } = await supabase.rpc("registrar_venta", {
       p_id_medio_pago: selectedMedioId,
       p_items: payload,
+      p_descuento_monto: descuentoMonto,
     });
 
     if (error) {
@@ -541,6 +603,7 @@ export function NewSaleView({
     await new Promise((resolve) => setTimeout(resolve, 900));
 
     setCart({});
+    setDescuentoMontoRaw("");
     router.push("/dashboard");
   }
 
@@ -549,6 +612,9 @@ export function NewSaleView({
 
   const cartProps = {
     cartLines,
+    cartSubtotal,
+    descuentoMonto,
+    setDescuentoMontoRaw,
     cartTotal,
     cartItemCount,
     mediosPago,

@@ -26,7 +26,7 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
   const [semRes, bestRes, perfilesRes] = await Promise.all([
     supabase
       .from("ventas")
-      .select("id, id_usuario, monto_total, fecha_venta")
+      .select("id, id_usuario, monto_total, descuento_monto, fecha_venta")
       .eq("id_tienda", idTienda)
       .gte("fecha_venta", weekStart.toISOString())
       .lt("fecha_venta", weekEnd.toISOString())
@@ -120,6 +120,7 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
       vendedor: nameByUser.get(v.id_usuario as string) ?? "Usuario",
       hora,
       monto: Number(v.monto_total),
+      descuentoMonto: Number(v.descuento_monto ?? 0),
       items,
       lineas,
     };

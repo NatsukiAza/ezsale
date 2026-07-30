@@ -38,6 +38,7 @@ export type VentaHoyItem = {
   vendedor: string;
   hora: string;
   monto: number;
+  descuentoMonto: number;
   items: number;
   lineas: VentaHoyLinea[];
 };
@@ -323,7 +324,21 @@ export function DashboardView({
                           {v.items}
                         </DataTableCell>
                         <DataTableCell className="text-right">
-                          <Money value={v.monto} />
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span
+                              className={cn(
+                                v.descuentoMonto > 0 &&
+                                  "text-amber-700 dark:text-amber-400",
+                              )}
+                            >
+                              <Money value={v.monto} />
+                            </span>
+                            {v.descuentoMonto > 0 ? (
+                              <span className="text-caption text-amber-700 dark:text-amber-400">
+                                −{formatArs(v.descuentoMonto)}
+                              </span>
+                            ) : null}
+                          </div>
                         </DataTableCell>
                       </DataTableRow>
                       {isOpen ? (
