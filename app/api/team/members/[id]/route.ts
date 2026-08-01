@@ -23,10 +23,10 @@ async function requireAdminSameTienda() {
   }
   const { data: perfil, error: pe } = await supabase
     .from("perfiles")
-    .select("id_tienda, rol")
+    .select("id_tienda, rol, eliminado_en")
     .eq("id", user.id)
     .maybeSingle();
-  if (pe || !perfil?.id_tienda) {
+  if (pe || !perfil?.id_tienda || perfil.eliminado_en) {
     return {
       error: NextResponse.json(
         { ok: false, error: pe?.message ?? "No se encontró tu perfil." },
@@ -64,11 +64,11 @@ export async function GET(
 
   const { data: target, error: te } = await admin
     .from("perfiles")
-    .select("id, id_tienda, nombre, apellido, rol")
+    .select("id, id_tienda, nombre, apellido, rol, eliminado_en")
     .eq("id", targetId)
     .maybeSingle();
 
-  if (te || !target) {
+  if (te || !target || target.eliminado_en) {
     return NextResponse.json({ ok: false, error: "Usuario no encontrado." }, { status: 404 });
   }
   if (target.id_tienda !== ctx.idTienda) {
@@ -125,11 +125,11 @@ export async function PATCH(
 
   const { data: target, error: te } = await admin
     .from("perfiles")
-    .select("id, id_tienda, rol")
+    .select("id, id_tienda, rol, eliminado_en")
     .eq("id", targetId)
     .maybeSingle();
 
-  if (te || !target) {
+  if (te || !target || target.eliminado_en) {
     return NextResponse.json({ ok: false, error: "Usuario no encontrado." }, { status: 404 });
   }
   if (target.id_tienda !== ctx.idTienda) {
@@ -145,7 +145,8 @@ export async function PATCH(
       .from("perfiles")
       .select("id", { count: "exact", head: true })
       .eq("id_tienda", ctx.idTienda)
-      .eq("rol", "admin");
+      .eq("rol", "admin")
+      .is("eliminado_en", null);
 
     if (ce || count === null || count <= 1) {
       return NextResponse.json(
@@ -197,11 +198,11 @@ export async function DELETE(
 
   const { data: target, error: te } = await admin
     .from("perfiles")
-    .select("id, id_tienda, rol")
+    .select("id, id_tienda, rol, eliminado_en")
     .eq("id", targetId)
     .maybeSingle();
 
-  if (te || !target) {
+  if (te || !target || target.eliminado_en) {
     return NextResponse.json({ ok: false, error: "Usuario no encontrado." }, { status: 404 });
   }
   if (target.id_tienda !== ctx.idTienda) {
@@ -213,7 +214,8 @@ export async function DELETE(
       .from("perfiles")
       .select("id", { count: "exact", head: true })
       .eq("id_tienda", ctx.idTienda)
-      .eq("rol", "admin");
+      .eq("rol", "admin")
+      .is("eliminado_en", null);
 
     if (ce || count === null || count <= 1) {
       return NextResponse.json(
@@ -226,12 +228,44 @@ export async function DELETE(
     }
   }
 
-  const { error: delAuth } = await admin.auth.admin.deleteUser(targetId);
-  if (delAuth) {
+  const { data: softRow, error: softErr } = await admin
+    .from("perfiles")
+    .update({ eliminado_en: new Date().toISOString() })
+    .eq("id", targetId)
+    .eq("id_tienda", ctx.idTienda)
+    .is("eliminado_en", null)
+    .select("id")
+    .maybeSingle();
+
+  if (softErr || !softRow) {
     return NextResponse.json(
-      { ok: false, error: delAuth.message ?? "No se pudo eliminar la cuenta." },
+      {
+        ok: false,
+        error: softErr?.message ?? "No se pudo eliminar la cuenta.",
+      },
       { status: 400 },
     );
+  }
+
+  // Bloquear login y cerrar sesiones activas (el perfil y las ventas se conservan).
+  const { error: banErr } = await admin.auth.admin.updateUserById(targetId, {
+    ban_duration: "876600h",
+  });
+  if (banErr) {
+    await admin
+      .from("perfiles")
+      .update({ eliminado_en: null })
+      .eq("id", targetId);
+    return NextResponse.json(
+      { ok: false, error: banErr.message ?? "No se pudo desactivar el acceso." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    await admin.auth.admin.signOut(targetId, "global");
+  } catch {
+    // Best-effort: el ban ya impide nuevos inicios de sesión.
   }
 
   return NextResponse.json({ ok: true });

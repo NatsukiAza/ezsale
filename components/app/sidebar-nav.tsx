@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   ChartColumn,
+  CreditCard,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -42,6 +43,7 @@ const navItems = [
   { href: "/products", label: "Productos", icon: Package, adminOnly: false },
   { href: "/reports", label: "Reportes", icon: ChartColumn, adminOnly: true },
   { href: "/team", label: "Equipo", icon: Users, adminOnly: true },
+  { href: "/cuenta", label: "Cuenta", icon: CreditCard, adminOnly: false },
 ] as const;
 
 export type SidebarUser = {
@@ -126,7 +128,7 @@ function SidebarBody({
     if (supabase) await supabase.auth.signOut();
     clearGateCookieClient();
     setSigningOut(false);
-    router.push("/");
+    router.push("/login");
     router.refresh();
   }
 

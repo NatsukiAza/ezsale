@@ -11,13 +11,14 @@ alwaysApply: true
 
 # Database Schema (Supabase/PostgreSQL)
 
-- **tiendas**: id (uuid), nombre.
-- **perfiles**: id (references auth.users), id_tienda, nombre, apellido, rol ('admin', 'normal').
-- **categorias**: id, id_tienda, nombre, id_padre (self-reference para subcategorías).
-- **productos**: id, id_tienda, id_categoria, nombre, descripcion, precio_actual.
+- **tiendas**: id (uuid), nombre, plan ('local'|'sucursales'|'cadena'|'empresa'|null), cobro_exento (bool; cortesía sin cobro), nota_cobro, pagado_hasta, mp_preapproval_id, mp_payer_email, estado_mp, tyc_aceptados_en (timestamptz; consentimiento TyC al registrar), tyc_version (text; ej. '2026-08'), created_at.
+- **perfiles**: id (references auth.users), id_tienda, nombre, apellido, rol ('admin', 'normal'), eliminado_en (null = activo; soft-delete).
+- **categorias**: id, id_tienda, nombre, id_padre (self-reference para subcategorías), eliminado_en (null = activa; soft-delete).
+- **productos**: id, id_tienda, id_categoria, nombre, descripcion, precio_actual, eliminado_en (null = activo; soft-delete).
 - **medios_pago**: id, nombre.
 - **ventas**: id, id_tienda, id_usuario, id_medio_pago, monto_total, descuento_monto, fecha_venta.
 - **detalle_ventas**: id, id_venta, id_product, cantidad, precio_unitario_historico, subtotal, descuento_porcentaje.
+- **mp_webhook_events**: id (text PK), topic, processed_at, email_enviado — idempotencia de webhooks Mercado Pago (solo service role).
 
 ## Business Rules
 
@@ -25,3 +26,6 @@ alwaysApply: true
 - El precio de venta se congela en `detalle_ventas.precio_unitario_historico`.
 - `ventas.descuento_monto` es un descuento fijo en pesos sobre el subtotal de líneas; `monto_total = max(0, subtotal_lineas - descuento_monto)`.
 - El sistema es Multi-tenant: siempre filtrar por `id_tienda`.
+- Listados de catálogo / nueva venta: filtrar `eliminado_en is null`. Las ventas históricas siguen resolviendo nombre vía join aunque el producto esté soft-deleted.
+- Al soft-deletear una categoría se soft-deleta sus productos y subcategorías.
+- Suscripción: cobro a nivel `tiendas`. Si `cobro_exento`, nunca se bloquea. Sin pagos, trial = `created_at + 30 días`. Con `pagado_hasta`, gracia de 30 días y luego bloqueo total. Recibo de pago por email solo a admins (no es factura AFIP).

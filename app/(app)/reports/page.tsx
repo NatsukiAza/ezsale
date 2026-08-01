@@ -1,11 +1,17 @@
 import { ReportsView } from "./_components/reports-view";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
+import { getPlan, parsePlanId } from "@/lib/billing/plans";
+import { getReportesMinDate } from "@/lib/billing/access";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 function todayLocalYmd(): string {
   const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function toYmd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
@@ -17,12 +23,16 @@ function dayStartEnd(ymd: string): { start: Date; end: Date } {
 }
 
 export default async function ReportsPage() {
-  const { supabase, user, perfil } = await getPerfilTienda();
-  if (!supabase || !user) redirect("/");
+  const { supabase, user, perfil, tienda } = await getPerfilTienda();
+  if (!supabase || !user) redirect("/login");
   if (!perfil?.id_tienda) redirect("/registro/completar");
   if (perfil.rol !== "admin") redirect("/dashboard");
 
   const idTienda = perfil.id_tienda;
+  const plan = getPlan(parsePlanId(tienda?.plan));
+  const minDate = getReportesMinDate(plan.reportesAnios);
+  const reportesMinYmd = minDate ? toYmd(minDate) : null;
+
   const { start, end } = dayStartEnd(todayLocalYmd());
 
   const [ventasRes, perfilesRes] = await Promise.all([
@@ -75,6 +85,7 @@ export default async function ReportsPage() {
       initialVentas={initialVentas}
       initialNamesByUser={namesByUser}
       initialLoadError={ventasRes.error?.message ?? null}
+      reportesMinYmd={reportesMinYmd}
     />
   );
 }

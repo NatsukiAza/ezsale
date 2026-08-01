@@ -90,6 +90,29 @@ type DeleteTarget =
 
 const FILTRO_TODAS = "__todas__";
 
+/** IDs de una categoría y todas sus subcategorías (árbol). */
+function collectCategoriaTreeIds(
+  rootId: string,
+  categorias: { id: string; id_padre: string | null }[],
+): string[] {
+  const childrenByParent = new Map<string, string[]>();
+  for (const c of categorias) {
+    if (!c.id_padre) continue;
+    const list = childrenByParent.get(c.id_padre) ?? [];
+    list.push(c.id);
+    childrenByParent.set(c.id_padre, list);
+  }
+  const out: string[] = [];
+  const stack = [rootId];
+  while (stack.length > 0) {
+    const id = stack.pop()!;
+    out.push(id);
+    const kids = childrenByParent.get(id);
+    if (kids) stack.push(...kids);
+  }
+  return out;
+}
+
 function categoriaNombreFromJoin(row: { categorias: unknown }): string | null {
   const c = row.categorias;
   if (c == null) return null;
@@ -157,6 +180,22 @@ export function ProductsView({
   const [savingPrices, setSavingPrices] = useState(false);
 
   const deferredSearchQuery = useDeferredValue(searchQuery);
+
+  const deleteCategoriaTreeIds = useMemo(() => {
+    if (!deleteTarget || deleteTarget.kind !== "categoria") return null;
+    return collectCategoriaTreeIds(deleteTarget.item.id, categoriasList);
+  }, [deleteTarget, categoriasList]);
+
+  const deleteCategoriaProductCount = useMemo(() => {
+    if (!deleteCategoriaTreeIds) return 0;
+    const idSet = new Set(deleteCategoriaTreeIds);
+    return productos.filter((p) => idSet.has(p.id_categoria)).length;
+  }, [deleteCategoriaTreeIds, productos]);
+
+  const deleteCategoriaSubCount = useMemo(() => {
+    if (!deleteCategoriaTreeIds) return 0;
+    return Math.max(0, deleteCategoriaTreeIds.length - 1);
+  }, [deleteCategoriaTreeIds]);
 
   const canSubmitProducto = useMemo(() => {
     const n = nombre.trim();
@@ -255,6 +294,7 @@ export function ProductsView({
           .from("categorias")
           .select("id, nombre, id_padre")
           .eq("id_tienda", tid)
+          .is("eliminado_en", null)
           .order("nombre"),
         supabase
           .from("productos")
@@ -262,6 +302,7 @@ export function ProductsView({
             "id, id_categoria, nombre, descripcion, precio_actual, categorias ( nombre )",
           )
           .eq("id_tienda", tid)
+          .is("eliminado_en", null)
           .order("nombre"),
       ]);
 
@@ -449,33 +490,71 @@ export function ProductsView({
       return;
     }
     setDeleting(true);
-    const table =
-      deleteTarget.kind === "producto" ? "productos" : "categorias";
-    const { error } = await supabase
-      .from(table)
-      .delete()
-      .eq("id", deleteTarget.item.id)
-      .eq("id_tienda", idTienda);
-    setDeleting(false);
+    const now = new Date().toISOString();
 
-    if (error) {
-      const fk = error.message.includes("foreign key") || error.code === "23503";
-      toast.error(
-        fk
-          ? deleteTarget.kind === "producto"
-            ? "No se puede eliminar: el producto está asociado a ventas."
-            : "No se puede eliminar: hay productos u otras categorías que dependen de ella."
-          : error.message,
-      );
+    if (deleteTarget.kind === "producto") {
+      const { data: softRow, error } = await supabase
+        .from("productos")
+        .update({ eliminado_en: now })
+        .eq("id", deleteTarget.item.id)
+        .eq("id_tienda", idTienda)
+        .is("eliminado_en", null)
+        .select("id")
+        .maybeSingle();
+      setDeleting(false);
+
+      if (error || !softRow) {
+        toast.error(error?.message ?? "No se pudo eliminar el producto.");
+        return;
+      }
+
+      toast.success("Producto eliminado.");
+      setDeleteTarget(null);
+      setLoadingList(true);
+      await loadData();
       return;
     }
 
-    toast.success(
-      deleteTarget.kind === "producto"
-        ? "Producto eliminado."
-        : "Categoría eliminada.",
+    const treeIds = collectCategoriaTreeIds(
+      deleteTarget.item.id,
+      categoriasList,
     );
+
+    const { error: prodErr } = await supabase
+      .from("productos")
+      .update({ eliminado_en: now })
+      .eq("id_tienda", idTienda)
+      .in("id_categoria", treeIds)
+      .is("eliminado_en", null);
+
+    if (prodErr) {
+      setDeleting(false);
+      toast.error(prodErr.message ?? "No se pudieron eliminar los productos.");
+      return;
+    }
+
+    const { error: catErr } = await supabase
+      .from("categorias")
+      .update({ eliminado_en: now })
+      .eq("id_tienda", idTienda)
+      .in("id", treeIds)
+      .is("eliminado_en", null);
+
+    setDeleting(false);
+
+    if (catErr) {
+      toast.error(catErr.message ?? "No se pudo eliminar la categoría.");
+      return;
+    }
+
+    toast.success("Categoría eliminada.");
     setDeleteTarget(null);
+    if (
+      filterCategoriaId &&
+      treeIds.includes(filterCategoriaId)
+    ) {
+      setFilterCategoriaId(null);
+    }
     setLoadingList(true);
     await loadData();
   }
@@ -988,13 +1067,56 @@ export function ProductsView({
         }
         description={
           deleteTarget ? (
-            <>
-              ¿Eliminar {deleteTarget.kind === "producto" ? "el producto" : "la categoría"}{" "}
-              <span className="font-medium text-foreground">
-                &quot;{deleteTarget.item.nombre}&quot;
-              </span>
-              ? Esta acción no se puede deshacer.
-            </>
+            deleteTarget.kind === "producto" ? (
+              <>
+                ¿Eliminar el producto{" "}
+                <span className="font-medium text-foreground">
+                  &quot;{deleteTarget.item.nombre}&quot;
+                </span>
+                ? Dejará de aparecer en el catálogo y en nuevas ventas. El
+                historial de ventas conservará su nombre.
+              </>
+            ) : (
+              <>
+                ¿Eliminar la categoría{" "}
+                <span className="font-medium text-foreground">
+                  &quot;{deleteTarget.item.nombre}&quot;
+                </span>
+                ?
+                {deleteCategoriaProductCount > 0 ? (
+                  <>
+                    {" "}
+                    Se eliminarán también{" "}
+                    <span className="font-medium text-foreground">
+                      {deleteCategoriaProductCount === 1
+                        ? "1 producto"
+                        : `${deleteCategoriaProductCount} productos`}
+                    </span>
+                    {deleteCategoriaSubCount > 0
+                      ? ` y ${
+                          deleteCategoriaSubCount === 1
+                            ? "1 subcategoría"
+                            : `${deleteCategoriaSubCount} subcategorías`
+                        }`
+                      : ""}
+                    .
+                  </>
+                ) : deleteCategoriaSubCount > 0 ? (
+                  <>
+                    {" "}
+                    Se eliminarán también{" "}
+                    {deleteCategoriaSubCount === 1
+                      ? "1 subcategoría"
+                      : `${deleteCategoriaSubCount} subcategorías`}
+                    .
+                  </>
+                ) : (
+                  <> No tiene productos asociados.</>
+                )}{" "}
+                Dejarán de aparecer en el catálogo; el historial de ventas se
+                conserva.
+              </>
+            )
           ) : null
         }
         loading={deleting}

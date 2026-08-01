@@ -74,7 +74,7 @@ export function ChangePasswordForm() {
     const supabase = createClient();
     if (supabase) await supabase.auth.signOut();
     clearGateCookieClient();
-    router.push("/");
+    router.push("/login");
     router.refresh();
   }
 

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { TERMINOS_VERSION } from "@/lib/legal/terminos";
 import { NextResponse } from "next/server";
 
 type Body = {
@@ -7,6 +8,9 @@ type Body = {
   nombreTienda?: string;
   nombre?: string;
   apellido?: string;
+  plan?: string;
+  aceptoTerminos?: boolean;
+  terminosVersion?: string;
 };
 
 export async function POST(request: Request) {
@@ -15,6 +19,29 @@ export async function POST(request: Request) {
     body = (await request.json()) as Body;
   } catch {
     return NextResponse.json({ ok: false, error: "Petición inválida" }, { status: 400 });
+  }
+
+  if (body.aceptoTerminos !== true) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Debés aceptar los Términos y Condiciones para registrarte.",
+      },
+      { status: 400 },
+    );
+  }
+
+  const terminosVersion =
+    typeof body.terminosVersion === "string" ? body.terminosVersion.trim() : "";
+  if (terminosVersion !== TERMINOS_VERSION) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Los Términos y Condiciones se actualizaron. Recargá la página y volvé a aceptarlos.",
+      },
+      { status: 400 },
+    );
   }
 
   const admin = createAdminClient();
@@ -35,6 +62,14 @@ export async function POST(request: Request) {
   const nombreTienda = typeof body.nombreTienda === "string" ? body.nombreTienda.trim() : "";
   const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
   const apellido = typeof body.apellido === "string" ? body.apellido.trim() : "";
+  const planRaw = typeof body.plan === "string" ? body.plan.trim().toLowerCase() : "";
+  const plan =
+    planRaw === "local" ||
+    planRaw === "sucursales" ||
+    planRaw === "cadena" ||
+    planRaw === "empresa"
+      ? planRaw
+      : null;
 
   if (!email || !password || !nombreTienda || !nombre) {
     return NextResponse.json(
@@ -69,7 +104,12 @@ export async function POST(request: Request) {
 
   const { data: tiendaRow, error: tiendaErr } = await admin
     .from("tiendas")
-    .insert({ nombre: nombreTienda })
+    .insert({
+      nombre: nombreTienda,
+      ...(plan ? { plan } : {}),
+      tyc_aceptados_en: new Date().toISOString(),
+      tyc_version: TERMINOS_VERSION,
+    })
     .select("id")
     .single();
 

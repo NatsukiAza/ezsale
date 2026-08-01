@@ -518,10 +518,17 @@ mantiene el layout estable y anuncia el cambio de estado con
 
 ### `/` — Landing pública
 
-Una columna, ancho máximo 1100px. Encabezado con marca y un enlace de registro.
-Bloque de presentación con un título en display-lg, una línea de descripción y el
-formulario de acceso en una card a la derecha a partir de `lg`. Tres puntos de
-valor en texto, sin tarjetas con iconos grandes. Footer mínimo.
+Grupo de rutas `(marketing)`. Página de marketing full-bleed (sin el límite de
+1200px de la app). Secciones en este orden: nav sticky, hero con video + mockup
+de notebook, barra de prueba, features (3 bloques), cards crema, sección de
+celular, testimonios, precios (4 planes + tabla de comparación), FAQ, CTA final
+y footer. Usa la capa de marketing (§13). CTAs primarios: "Crear mi tienda" →
+`/registro`; "Iniciar sesión" → `/login`.
+
+### `/login`
+
+Layout `(auth)`: pantalla centrada, card de 420px de ancho, marca arriba,
+formulario de acceso, enlace a registro. Sin sidebar, sin footer.
 
 ### `/registro`, `/registro/completar`, `/auth/cambiar-password`
 
@@ -573,9 +580,11 @@ ventas del período con detalle expandible y edición en `Dialog`.
 components/
   ui/       primitivas de shadcn, sin lógica de negocio
   app/      componentes compartidos del producto
+  marketing/  componentes exclusivos de la landing
 app/
-  (auth)/   pantallas públicas y de autenticación
-  (app)/    pantallas autenticadas, con AppShell
+  (marketing)/  landing pública
+  (auth)/       autenticación (login, registro, password)
+  (app)/        pantallas autenticadas, con AppShell
     <ruta>/_components/   componentes de esa pantalla
 lib/
   utils.ts  helper cn()
@@ -588,3 +597,52 @@ Reglas:
 - Nada de valores de color literales en el markup. Solo tokens semánticos.
 - `cn()` para todo class merge condicional.
 - Los componentes de `components/ui` no importan nada de `components/app`.
+- Los tokens y utilidades de marketing (§13) no se usan fuera de
+  `app/(marketing)/` y `components/marketing/`.
+
+---
+
+## 13. Superficie de marketing
+
+La landing pública necesita recursos visuales que la aplicación de gestión no
+debe tener. Esta sección abre excepciones **exclusivas** para
+`app/(marketing)/` y `components/marketing/`. Fuera de esos directorios, §1.7 y
+§10 siguen vigentes sin cambios.
+
+### 13.1 Permitido solo en marketing
+
+- Degradados y radiales de marca como fondo de sección (`bg-hero-radial`,
+  `bg-clay-field`, radial sobre blanco en precios).
+- Video de fondo con overlay y blur (hero).
+- Sombras en tarjetas de feature/pricing y en marcos de dispositivo.
+- Radios grandes (`rounded-[2.5rem]` y similares) únicamente en marcos de
+  notebook y celular.
+- Escala tipográfica de display más grande que 40px (`text-hero`,
+  `text-section-title`).
+- Animación de entrada al scroll (vía `motion`), respetando
+  `prefers-reduced-motion`.
+- Superficie crema (`--surface-cream`) para bandas y cards de contenido.
+- Espaciado entre secciones de 96px / 128px.
+
+### 13.2 Sigue prohibido incluso en la landing
+
+- Emojis como iconos.
+- Iconos decorativos de 32px o más sin texto asociado.
+- `uppercase tracking-widest` / `tracking-[0.2em]` como decoración.
+- `active:scale-95`, `hover:scale-110` en controles.
+- Colores literales (hex) en el markup; solo tokens semánticos / de marketing.
+- Más de un botón primario relleno por sección.
+- Glassmorphism genérico fuera del nav sticky (backdrop-blur del nav sí).
+
+### 13.3 Tokens de marketing
+
+| Token / utilidad | Uso |
+| --- | --- |
+| `--surface-cream` | Fondo de bandas y cards crema |
+| `--control-h-xl` / `size="xl"` | CTAs de la landing (48px) |
+| `text-hero` | Título del hero |
+| `text-section-title` | Títulos de sección |
+| `bg-hero-radial` | Radial arcilla sobre fondo oscuro |
+| `bg-clay-field` | Campo saturado de la sección celular |
+
+Estos tokens están prohibidos en `app/(app)/` y en componentes de `components/app`.

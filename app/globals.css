@@ -113,6 +113,10 @@
   --overlay-shadow:
     0 2px 4px -2px rgb(23 22 20 / 0.12), 0 16px 40px -12px rgb(23 22 20 / 0.22);
 
+  /* Marketing — solo app/(marketing)/ y components/marketing/ · DESIGN.md §13 */
+  --surface-cream: #f9f5f1;
+  --control-h-xl: 48px;
+
   /* Consumido por sonner */
   --radius: 0.5rem;
 }
@@ -191,6 +195,8 @@
     0 1px 2px -1px rgb(0 0 0 / 0.5), 0 4px 12px -3px rgb(0 0 0 / 0.55);
   --overlay-shadow:
     0 2px 4px -2px rgb(0 0 0 / 0.5), 0 16px 40px -12px rgb(0 0 0 / 0.7);
+
+  --surface-cream: #221f1c;
 }
 
 /* ---------------------------------------------------------------------------
@@ -209,6 +215,7 @@
   --color-popover-foreground: var(--popover-foreground);
 
   --color-surface-sunken: var(--surface-sunken);
+  --color-surface-cream: var(--surface-cream);
 
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
@@ -280,10 +287,13 @@
   --spacing-control-sm: 2rem;
   --spacing-control: 2.25rem;
   --spacing-control-lg: 2.75rem;
+  --spacing-control-xl: 3rem;
   --spacing-sidebar: 15.5rem;
   --spacing-sidebar-collapsed: 3.5rem;
   --spacing-header: 3.5rem;
   --spacing-content: 75rem;
+  --spacing-section: 6rem;
+  --spacing-section-lg: 8rem;
 
   --ease-enter: cubic-bezier(0.2, 0, 0, 1);
 }
@@ -312,10 +322,75 @@ html.dark .bg-atmosphere {
     );
 }
 
+/* Marketing — DESIGN.md §13 · no usar fuera de (marketing) */
+@utility bg-hero-radial {
+  background-color: var(--neutral-950);
+  background-image: radial-gradient(
+    ellipse 90% 60% at 50% -5%,
+    color-mix(in srgb, var(--clay-600) 45%, transparent),
+    transparent 70%
+  );
+}
+
+/* Overlay sobre video: solo el radial, sin fondo sólido */
+@utility bg-hero-radial-overlay {
+  background-image: radial-gradient(
+    ellipse 90% 60% at 50% -5%,
+    color-mix(in srgb, var(--clay-600) 40%, transparent),
+    transparent 70%
+  );
+}
+
+@utility bg-clay-field {
+  background-image: linear-gradient(
+    160deg,
+    var(--clay-800) 0%,
+    var(--clay-600) 55%,
+    var(--clay-700) 100%
+  );
+}
+
+@utility bg-pricing-radial {
+  background-color: var(--background);
+  background-image: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    color-mix(in srgb, var(--clay-200) 55%, transparent),
+    transparent 70%
+  );
+}
+
+.dark .bg-pricing-radial,
+html.dark .bg-pricing-radial {
+  background-image: radial-gradient(
+    ellipse 80% 50% at 50% 0%,
+    color-mix(in srgb, var(--clay-800) 40%, transparent),
+    transparent 70%
+  );
+}
+
 /* ---------------------------------------------------------------------------
    Escala tipográfica — DESIGN.md § 3.1
    Cada utilidad fija familia, tamaño, interlineado, tracking y peso.
    --------------------------------------------------------------------------- */
+
+/* Marketing display — DESIGN.md §13 */
+@utility text-hero {
+  font-family: var(--font-display);
+  font-size: clamp(2.75rem, 6vw, 4.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  font-weight: 700;
+  font-optical-sizing: auto;
+}
+
+@utility text-section-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  font-optical-sizing: auto;
+}
 
 @utility text-display-lg {
   font-family: var(--font-display);
@@ -456,6 +531,41 @@ html.dark .bg-atmosphere {
 
   .product-flash {
     animation: cart-flash 150ms var(--ease-enter);
+  }
+
+  /* Demo POS en la landing — DESIGN.md §13 */
+  @keyframes pos-demo-flash {
+    0%,
+    12%,
+    100% {
+      border-color: var(--border);
+      box-shadow: none;
+    }
+    4%,
+    8% {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 1px
+        color-mix(in srgb, var(--primary) 35%, transparent);
+    }
+  }
+
+  @keyframes pos-demo-line-in {
+    0%,
+    5% {
+      opacity: 0.35;
+    }
+    12%,
+    100% {
+      opacity: 1;
+    }
+  }
+
+  .pos-demo-product {
+    animation: pos-demo-flash 8s var(--ease-enter) infinite;
+  }
+
+  .pos-demo-line {
+    animation: pos-demo-line-in 8s var(--ease-enter) infinite;
   }
 
   /* Las cifras nunca bailan al actualizarse */
