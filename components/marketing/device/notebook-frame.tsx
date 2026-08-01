@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
-
+/*
  * Coordenadas EXACTAS del hueco transparente en
  * public/landing/laptop-mockup.png (4826×2798).
  * Expandidas 1px para evitar filos por redondeo subpixel.
