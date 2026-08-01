@@ -40,7 +40,7 @@ const sales = [
 
 export function DashboardMock() {
   return (
-    <div className="flex h-full w-full overflow-hidden bg-background text-[9px] leading-tight text-foreground sm:text-[10px] md:text-[11px]">
+    <div className="absolute inset-0 flex overflow-hidden bg-background text-[9px] leading-tight text-foreground sm:text-[10px] md:text-[11px]">
       <aside className="hidden w-[28%] max-w-40 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-2 sm:flex">
         <div className="mb-3 px-1.5 font-display text-sm font-bold tracking-tight">
           <span className="text-primary">EZ</span>

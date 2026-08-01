@@ -22,7 +22,10 @@ const columns = [
     title: "Legal",
     links: [
       { href: "/terminos", label: "Términos" },
-      { href: "/terminos#8-datos-personales-y-privacidad", label: "Privacidad" },
+      {
+        href: "/terminos#8-datos-personales-y-privacidad",
+        label: "Privacidad",
+      },
     ],
   },
 ] as const;
@@ -72,7 +75,7 @@ export function LandingFooter() {
       </div>
 
       <div className="border-t border-neutral-800 py-5 text-center text-caption text-neutral-500">
-        © {year} EZSale
+        © {year} EZSale - Santino Azarola
       </div>
     </footer>
   );
