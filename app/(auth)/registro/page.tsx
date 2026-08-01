@@ -1,11 +1,18 @@
 import { RegisterForm } from "@/app/components/register-form";
 import { isSupabaseConfigured } from "@/lib/env";
+import { parsePlanId } from "@/lib/billing/plans";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { BrandMark } from "@/components/app/brand-mark";
 
-export default function RegistroPage() {
+export default async function RegistroPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ plan?: string }>;
+}) {
   const configured = isSupabaseConfigured();
+  const sp = await searchParams;
+  const initialPlan = parsePlanId(sp.plan);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -25,7 +32,7 @@ export default function RegistroPage() {
             </AlertDescription>
           </Alert>
         ) : null}
-        <RegisterForm />
+        <RegisterForm initialPlan={initialPlan} />
       </main>
     </div>
   );

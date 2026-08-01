@@ -173,7 +173,7 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
 export default async function DashboardPage() {
   const { supabase, user, perfil, tiendaNombre } = await getPerfilTienda();
 
-  if (!supabase || !user) redirect("/");
+  if (!supabase || !user) redirect("/login");
   if (!perfil?.id_tienda) redirect("/registro/completar");
 
   const idTienda = perfil.id_tienda;

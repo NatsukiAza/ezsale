@@ -193,11 +193,14 @@ export function ReportsView({
   initialVentas,
   initialNamesByUser,
   initialLoadError = null,
+  /** Fecha mínima inclusive (YYYY-MM-DD) según historial del plan. null = sin tope. */
+  reportesMinYmd = null,
 }: {
   idTienda: string;
   initialVentas: VentaRow[];
   initialNamesByUser: Record<string, string>;
   initialLoadError?: string | null;
+  reportesMinYmd?: string | null;
 }) {
   const [period, setPeriod] = useState<Period>("day");
   const [dayDate, setDayDate] = useState(todayLocalYmd);
@@ -248,10 +251,20 @@ export function ReportsView({
   }, [period, dayDate, monthAnchor, yearAnchor]);
 
   const { start, end } = useMemo(() => {
-    if (period === "day") return dayStartEnd(dayDate);
-    if (period === "month") return monthStartEnd(monthAnchor.y, monthAnchor.m);
-    return yearStartEnd(yearAnchor);
-  }, [period, dayDate, monthAnchor, yearAnchor]);
+    let range =
+      period === "day"
+        ? dayStartEnd(dayDate)
+        : period === "month"
+          ? monthStartEnd(monthAnchor.y, monthAnchor.m)
+          : yearStartEnd(yearAnchor);
+    if (reportesMinYmd) {
+      const minStart = dayStartEnd(reportesMinYmd).start;
+      if (range.start < minStart) {
+        range = { ...range, start: minStart };
+      }
+    }
+    return range;
+  }, [period, dayDate, monthAnchor, yearAnchor, reportesMinYmd]);
 
   const totalFacturado = useMemo(
     () => ventas.reduce((s, v) => s + Number(v.monto_total), 0),
@@ -414,6 +427,7 @@ export function ReportsView({
         .from("productos")
         .select("id, nombre, precio_actual")
         .eq("id_tienda", idTienda)
+        .is("eliminado_en", null)
         .order("nombre"),
     ]);
 
@@ -635,6 +649,8 @@ export function ReportsView({
   const now = new Date();
   const todayYmd = todayLocalYmd();
   const canNextDay = dayDate < todayYmd;
+  const canPrevDay =
+    !reportesMinYmd || addDaysYmd(dayDate, -1) >= reportesMinYmd;
   const currentMonth = {
     y: now.getFullYear(),
     m: now.getMonth() + 1,
@@ -645,16 +661,44 @@ export function ReportsView({
   const currentYear = now.getFullYear();
   const canNextYear = yearAnchor < currentYear;
 
+  const minYear = reportesMinYmd
+    ? Number(reportesMinYmd.slice(0, 4))
+    : null;
+  const minMonth = reportesMinYmd
+    ? {
+        y: Number(reportesMinYmd.slice(0, 4)),
+        m: Number(reportesMinYmd.slice(5, 7)),
+      }
+    : null;
+
   function shiftMonth(delta: number) {
     setMonthAnchor((prev) => {
       const d = new Date(prev.y, prev.m - 1 + delta, 1);
-      return { y: d.getFullYear(), m: d.getMonth() + 1 };
+      const next = { y: d.getFullYear(), m: d.getMonth() + 1 };
+      if (
+        minMonth &&
+        (next.y < minMonth.y ||
+          (next.y === minMonth.y && next.m < minMonth.m))
+      ) {
+        return prev;
+      }
+      return next;
     });
   }
 
   function shiftYear(delta: number) {
-    setYearAnchor((y) => y + delta);
+    setYearAnchor((y) => {
+      const next = y + delta;
+      if (minYear != null && next < minYear) return y;
+      return next;
+    });
   }
+
+  const canPrevMonth =
+    !minMonth ||
+    monthAnchor.y > minMonth.y ||
+    (monthAnchor.y === minMonth.y && monthAnchor.m > minMonth.m);
+  const canPrevYear = minYear == null || yearAnchor > minYear;
 
   return (
     <div className="pb-10">
@@ -680,6 +724,7 @@ export function ReportsView({
                 type="button"
                 variant="outline"
                 size="icon-sm"
+                disabled={!canPrevDay}
                 aria-label="Día anterior"
                 onClick={() => setDayDate((d) => addDaysYmd(d, -1))}
               >
@@ -688,8 +733,16 @@ export function ReportsView({
               <Input
                 type="date"
                 value={dayDate}
+                min={reportesMinYmd ?? undefined}
                 max={todayYmd}
-                onChange={(e) => setDayDate(e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (reportesMinYmd && v < reportesMinYmd) {
+                    setDayDate(reportesMinYmd);
+                    return;
+                  }
+                  setDayDate(v);
+                }}
                 className="h-8 w-auto"
                 aria-label="Elegir día"
               />
@@ -712,6 +765,7 @@ export function ReportsView({
                 type="button"
                 variant="outline"
                 size="icon-sm"
+                disabled={!canPrevMonth}
                 aria-label="Mes anterior"
                 onClick={() => shiftMonth(-1)}
               >
@@ -739,6 +793,7 @@ export function ReportsView({
                 type="button"
                 variant="outline"
                 size="icon-sm"
+                disabled={!canPrevYear}
                 aria-label="Año anterior"
                 onClick={() => shiftYear(-1)}
               >

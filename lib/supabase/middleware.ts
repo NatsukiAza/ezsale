@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { getAccesoTienda } from "@/lib/billing/access";
 import {
   GATE_COOKIE,
   GATE_TTL_MS,
@@ -13,7 +14,8 @@ function needsPerfilGate(path: string, isProtected: boolean, isAuthPage: boolean
     isAuthPage ||
     path.startsWith("/auth/cambiar-password") ||
     path.startsWith("/reports") ||
-    path.startsWith("/team")
+    path.startsWith("/team") ||
+    path.startsWith("/cuenta")
   );
 }
 
@@ -46,13 +48,15 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/products") ||
     path.startsWith("/reports") ||
     path.startsWith("/team") ||
+    path.startsWith("/cuenta") ||
     path.startsWith("/registro/completar");
-  const isAuthPage = path === "/" || path === "/registro";
+  const isAuthPage = path === "/login" || path === "/registro";
+  const isCuenta = path.startsWith("/cuenta");
 
   if (!url || !key) {
     if (isProtected) {
       const u = request.nextUrl.clone();
-      u.pathname = "/";
+      u.pathname = "/login";
       return NextResponse.redirect(u);
     }
     return supabaseResponse;
@@ -77,33 +81,96 @@ export async function updateSession(request: NextRequest) {
 
   const {
     data: { user },
+    error: authError,
   } = await supabase.auth.getUser();
 
+  if (
+    authError &&
+    (authError.code === "refresh_token_not_found" ||
+      authError.message?.includes("Refresh Token"))
+  ) {
+    await supabase.auth.signOut();
+  }
+
   if (path.startsWith("/auth/cambiar-password") && !user) {
-    return redirectWithCookies(request, "/", supabaseResponse);
+    return redirectWithCookies(request, "/login", supabaseResponse);
   }
 
   let debeCambiarPassword = false;
   let esAdmin = false;
+  let billingBlocked = false;
 
   if (user && needsPerfilGate(path, isProtected, isAuthPage)) {
     const cached = parseGate(request.cookies.get(GATE_COOKIE)?.value);
-    if (cached) {
+    // En /cuenta siempre refrescar cobro (vuelta de MP / pago reciente)
+    const forceBillingRefresh = isCuenta;
+
+    if (cached && !forceBillingRefresh) {
       debeCambiarPassword = cached.debeCambiarPassword;
       esAdmin = cached.rol === "admin";
+      billingBlocked = cached.billingBlocked;
+
+      // Soft-delete sigue requiriendo lectura de perfil
+      const { data: perfilSoft } = await supabase
+        .from("perfiles")
+        .select("eliminado_en")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (perfilSoft?.eliminado_en) {
+        await supabase.auth.signOut();
+        supabaseResponse.cookies.set(GATE_COOKIE, "", {
+          path: "/",
+          maxAge: 0,
+          sameSite: "lax",
+        });
+        return redirectWithCookies(request, "/login", supabaseResponse);
+      }
     } else {
       const { data: perfil } = await supabase
         .from("perfiles")
-        .select("debe_cambiar_password, rol")
+        .select("debe_cambiar_password, rol, eliminado_en, id_tienda")
         .eq("id", user.id)
         .maybeSingle();
+
+      if (perfil?.eliminado_en) {
+        await supabase.auth.signOut();
+        supabaseResponse.cookies.set(GATE_COOKIE, "", {
+          path: "/",
+          maxAge: 0,
+          sameSite: "lax",
+        });
+        return redirectWithCookies(request, "/login", supabaseResponse);
+      }
+
       debeCambiarPassword = perfil?.debe_cambiar_password === true;
       esAdmin = perfil?.rol === "admin";
+
+      let billingPhase = "ok";
+      if (perfil?.id_tienda) {
+        const { data: tienda } = await supabase
+          .from("tiendas")
+          .select("created_at, cobro_exento, pagado_hasta, plan")
+          .eq("id", perfil.id_tienda)
+          .maybeSingle();
+        if (tienda) {
+          const acceso = getAccesoTienda({
+            created_at: tienda.created_at as string,
+            cobro_exento: Boolean(tienda.cobro_exento),
+            pagado_hasta: (tienda.pagado_hasta as string | null) ?? null,
+            plan: (tienda.plan as string | null) ?? null,
+          });
+          billingBlocked = !acceso.allowed;
+          billingPhase = acceso.phase;
+        }
+      }
+
       supabaseResponse.cookies.set(
         GATE_COOKIE,
         serializeGate({
           debeCambiarPassword,
           rol: (perfil?.rol as string) ?? "normal",
+          billingBlocked,
+          billingPhase,
         }),
         {
           path: "/",
@@ -139,6 +206,17 @@ export async function updateSession(request: NextRequest) {
   if (
     user &&
     !debeCambiarPassword &&
+    billingBlocked &&
+    isProtected &&
+    !isCuenta &&
+    !path.startsWith("/registro/completar")
+  ) {
+    return redirectWithCookies(request, "/cuenta", supabaseResponse);
+  }
+
+  if (
+    user &&
+    !debeCambiarPassword &&
     !esAdmin &&
     (path.startsWith("/reports") || path.startsWith("/team"))
   ) {
@@ -146,7 +224,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isProtected && !user) {
-    return redirectWithCookies(request, "/", supabaseResponse);
+    return redirectWithCookies(request, "/login", supabaseResponse);
   }
 
   if (isAuthPage && user) {

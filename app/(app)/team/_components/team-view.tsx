@@ -129,7 +129,8 @@ export function TeamView({
     const { data: rows, error: re } = await supabase
       .from("perfiles")
       .select("id, nombre, apellido, rol")
-      .eq("id_tienda", tid);
+      .eq("id_tienda", tid)
+      .is("eliminado_en", null);
 
     if (re) {
       setLoadError(re.message);
@@ -771,7 +772,8 @@ export function TeamView({
                 {`${deleteTarget.nombre} ${deleteTarget.apellido}`.trim() ||
                   "este miembro"}
               </span>
-              ? Esta acción no se puede deshacer.
+              ? Dejará de aparecer en el equipo y no podrá iniciar sesión. Sus
+              ventas seguirán mostrando su nombre.
             </>
           ) : null
         }

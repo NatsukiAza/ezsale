@@ -13,9 +13,10 @@ type AppShellProps = {
   user: SidebarUser;
   children: React.ReactNode;
   className?: string;
+  banner?: React.ReactNode;
 };
 
-function AppShellInner({ user, children, className }: AppShellProps) {
+function AppShellInner({ user, children, className, banner }: AppShellProps) {
   const { collapsed } = useSidebar();
   const pathname = usePathname();
   const fullWidth = pathname.startsWith("/new-sale");
@@ -34,6 +35,7 @@ function AppShellInner({ user, children, className }: AppShellProps) {
             className,
           )}
         >
+          {banner}
           <div
             className={cn(
               "mx-auto w-full",

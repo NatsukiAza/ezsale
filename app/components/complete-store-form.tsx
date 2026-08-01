@@ -6,21 +6,30 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { FormField } from "@/components/app/form-field";
+import { TerminosAcceptCheckbox } from "@/components/legal/terminos-accept-checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { TERMINOS_VERSION } from "@/lib/legal/terminos";
 
 export function CompleteStoreForm() {
   const router = useRouter();
   const [nombreTienda, setNombreTienda] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
+  const [aceptoTerminos, setAceptoTerminos] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+
+    if (!aceptoTerminos) {
+      setError("Debés aceptar los Términos y Condiciones para continuar.");
+      return;
+    }
+
     const supabase = createClient();
     if (!supabase) {
       setError("Supabase no está configurado.");
@@ -34,6 +43,8 @@ export function CompleteStoreForm() {
         p_nombre_tienda: nombreTienda,
         p_nombre: nombre,
         p_apellido: apellido,
+        p_plan: null,
+        p_tyc_version: TERMINOS_VERSION,
       },
     );
 
@@ -87,13 +98,24 @@ export function CompleteStoreForm() {
         </FormField>
       </div>
 
+      <TerminosAcceptCheckbox
+        id="cs-acepto-terminos"
+        checked={aceptoTerminos}
+        onCheckedChange={setAceptoTerminos}
+        invalid={Boolean(error && !aceptoTerminos)}
+      />
+
       {error ? (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button
+        type="submit"
+        className="w-full"
+        disabled={loading || !aceptoTerminos}
+      >
         {loading ? <Loader2 className="animate-spin" /> : null}
         {loading ? "Guardando…" : "Crear tienda y continuar"}
       </Button>

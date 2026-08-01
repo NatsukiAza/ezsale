@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function CompletarRegistroPage() {
   const supabase = await createClient();
   if (!supabase) {
-    redirect("/");
+    redirect("/login");
   }
 
   const {
@@ -17,7 +17,7 @@ export default async function CompletarRegistroPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/");
+    redirect("/login");
   }
 
   const { data: perfil } = await supabase

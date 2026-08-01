@@ -1,5 +1,9 @@
 import { cache } from "react";
 import { createClient } from "@/lib/supabase/server";
+import {
+  getAccesoTienda,
+  type AccesoTienda,
+} from "@/lib/billing/access";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 type PerfilBasico = {
@@ -7,6 +11,17 @@ type PerfilBasico = {
   rol: "admin" | "normal" | string;
   nombre: string | null;
   apellido: string | null;
+};
+
+export type TiendaBillingRow = {
+  nombre: string | null;
+  created_at: string;
+  cobro_exento: boolean;
+  pagado_hasta: string | null;
+  plan: string | null;
+  estado_mp: string | null;
+  mp_preapproval_id: string | null;
+  nota_cobro: string | null;
 };
 
 /**
@@ -35,26 +50,67 @@ export const getPerfilTienda = cache(
     user: User | null;
     perfil: PerfilBasico | null;
     tiendaNombre: string | null;
+    tienda: TiendaBillingRow | null;
+    acceso: AccesoTienda | null;
   }> => {
     const { supabase, user } = await getServerSession();
     if (!supabase || !user) {
-      return { supabase, user, perfil: null, tiendaNombre: null };
+      return {
+        supabase,
+        user,
+        perfil: null,
+        tiendaNombre: null,
+        tienda: null,
+        acceso: null,
+      };
     }
     const { data: perfil } = await supabase
       .from("perfiles")
-      .select("id_tienda, rol, nombre, apellido")
+      .select("id_tienda, rol, nombre, apellido, eliminado_en")
       .eq("id", user.id)
       .maybeSingle();
-    if (!perfil?.id_tienda) {
-      return { supabase, user, perfil: null, tiendaNombre: null };
+    if (!perfil?.id_tienda || perfil.eliminado_en) {
+      return {
+        supabase,
+        user,
+        perfil: null,
+        tiendaNombre: null,
+        tienda: null,
+        acceso: null,
+      };
     }
 
     const idTienda = perfil.id_tienda as string;
-    const { data: tienda } = await supabase
+    const { data: tiendaRow } = await supabase
       .from("tiendas")
-      .select("nombre")
+      .select(
+        "nombre, created_at, cobro_exento, pagado_hasta, plan, estado_mp, mp_preapproval_id, nota_cobro",
+      )
       .eq("id", idTienda)
       .maybeSingle();
+
+    const tienda: TiendaBillingRow | null = tiendaRow
+      ? {
+          nombre: (tiendaRow.nombre as string | null) ?? null,
+          created_at: tiendaRow.created_at as string,
+          cobro_exento: Boolean(tiendaRow.cobro_exento),
+          pagado_hasta: (tiendaRow.pagado_hasta as string | null) ?? null,
+          plan: (tiendaRow.plan as string | null) ?? null,
+          estado_mp: (tiendaRow.estado_mp as string | null) ?? null,
+          mp_preapproval_id:
+            (tiendaRow.mp_preapproval_id as string | null) ?? null,
+          nota_cobro: (tiendaRow.nota_cobro as string | null) ?? null,
+        }
+      : null;
+
+    const acceso = tienda
+      ? getAccesoTienda({
+          created_at: tienda.created_at,
+          cobro_exento: tienda.cobro_exento,
+          pagado_hasta: tienda.pagado_hasta,
+          plan: tienda.plan,
+        })
+      : null;
 
     return {
       supabase,
@@ -65,7 +121,9 @@ export const getPerfilTienda = cache(
         nombre: (perfil.nombre as string | null) ?? null,
         apellido: (perfil.apellido as string | null) ?? null,
       },
-      tiendaNombre: (tienda?.nombre as string | null) ?? null,
+      tiendaNombre: tienda?.nombre ?? null,
+      tienda,
+      acceso,
     };
   },
 );

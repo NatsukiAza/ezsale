@@ -23,7 +23,7 @@ function categoriaNombreFromJoin(row: { categorias: unknown }): string | null {
 
 export default async function ProductsPage() {
   const { supabase, user, perfil } = await getPerfilTienda();
-  if (!supabase || !user) redirect("/");
+  if (!supabase || !user) redirect("/login");
   if (!perfil?.id_tienda) redirect("/registro/completar");
 
   const idTienda = perfil.id_tienda;
@@ -34,6 +34,7 @@ export default async function ProductsPage() {
       .from("categorias")
       .select("id, nombre, id_padre")
       .eq("id_tienda", idTienda)
+      .is("eliminado_en", null)
       .order("nombre"),
     supabase
       .from("productos")
@@ -41,6 +42,7 @@ export default async function ProductsPage() {
         "id, id_categoria, nombre, descripcion, precio_actual, categorias ( nombre )",
       )
       .eq("id_tienda", idTienda)
+      .is("eliminado_en", null)
       .order("nombre"),
   ]);
 

@@ -13,7 +13,7 @@ type MiembroRow = {
 
 export default async function TeamPage() {
   const { supabase, user, perfil } = await getPerfilTienda();
-  if (!supabase || !user) redirect("/");
+  if (!supabase || !user) redirect("/login");
   if (!perfil?.id_tienda) redirect("/registro/completar");
   if (perfil.rol !== "admin") redirect("/dashboard");
 

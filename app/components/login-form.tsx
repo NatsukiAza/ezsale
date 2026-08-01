@@ -45,10 +45,17 @@ export function LoginForm() {
     const { data: perfilLogin } = user
       ? await supabase
           .from("perfiles")
-          .select("debe_cambiar_password")
+          .select("debe_cambiar_password, eliminado_en")
           .eq("id", user.id)
           .maybeSingle()
       : { data: null };
+
+    if (perfilLogin?.eliminado_en) {
+      await supabase.auth.signOut();
+      setLoading(false);
+      setError("Esta cuenta fue eliminada. Contactá a un administrador.");
+      return;
+    }
 
     setLoading(false);
     if (perfilLogin?.debe_cambiar_password === true) {

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app/app-shell";
+import { BillingBanner } from "@/components/app/billing-banner";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
 
 export default async function AppLayout({
@@ -7,10 +8,10 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, perfil, tiendaNombre } = await getPerfilTienda();
+  const { user, perfil, tiendaNombre, acceso } = await getPerfilTienda();
 
   if (!user) {
-    redirect("/");
+    redirect("/login");
   }
   if (!perfil?.id_tienda) {
     redirect("/registro/completar");
@@ -29,6 +30,14 @@ export default async function AppLayout({
         isAdmin: perfil.rol === "admin",
         tiendaNombre,
       }}
+      banner={
+        acceso ? (
+          <BillingBanner
+            phase={acceso.phase}
+            diasRestantes={acceso.diasRestantes}
+          />
+        ) : null
+      }
     >
       {children}
     </AppShell>

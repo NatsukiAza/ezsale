@@ -1,5 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { assertBillingAllowed } from "@/lib/billing/assert-access";
+import { getPlan, parsePlanId } from "@/lib/billing/plans";
 import { NextResponse } from "next/server";
 
 type Body = {
@@ -32,11 +34,11 @@ export async function POST(request: Request) {
 
   const { data: miPerfil, error: perfilErr } = await supabase
     .from("perfiles")
-    .select("id_tienda, rol")
+    .select("id_tienda, rol, eliminado_en")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (perfilErr || !miPerfil?.id_tienda) {
+  if (perfilErr || !miPerfil?.id_tienda || miPerfil.eliminado_en) {
     return NextResponse.json(
       { ok: false, error: perfilErr?.message ?? "No se encontró tu perfil." },
       { status: 400 },
@@ -46,6 +48,49 @@ export async function POST(request: Request) {
   if (miPerfil.rol !== "admin") {
     return NextResponse.json(
       { ok: false, error: "Solo los administradores pueden invitar usuarios." },
+      { status: 403 },
+    );
+  }
+
+  const idTienda = miPerfil.id_tienda as string;
+
+  const { data: tiendaBilling } = await supabase
+    .from("tiendas")
+    .select("created_at, cobro_exento, pagado_hasta, plan")
+    .eq("id", idTienda)
+    .maybeSingle();
+
+  if (tiendaBilling) {
+    const blocked = assertBillingAllowed({
+      created_at: tiendaBilling.created_at as string,
+      cobro_exento: Boolean(tiendaBilling.cobro_exento),
+      pagado_hasta: (tiendaBilling.pagado_hasta as string | null) ?? null,
+      plan: (tiendaBilling.plan as string | null) ?? null,
+    });
+    if (blocked) return blocked;
+  }
+
+  const plan = getPlan(parsePlanId(tiendaBilling?.plan));
+  const { count: activosCount, error: countErr } = await supabase
+    .from("perfiles")
+    .select("id", { count: "exact", head: true })
+    .eq("id_tienda", idTienda)
+    .is("eliminado_en", null);
+
+  if (countErr) {
+    return NextResponse.json(
+      { ok: false, error: countErr.message },
+      { status: 400 },
+    );
+  }
+
+  const activos = activosCount ?? 0;
+  if (Number.isFinite(plan.maxUsuarios) && activos >= plan.maxUsuarios) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `Tu plan ${plan.name} permite hasta ${plan.maxUsuarios} usuarios. Subí de plan o eliminá un usuario.`,
+      },
       { status: 403 },
     );
   }
@@ -81,6 +126,8 @@ export async function POST(request: Request) {
     );
   }
 
+  const rol = esAdmin ? "admin" : "normal";
+
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
     password,
@@ -88,6 +135,74 @@ export async function POST(request: Request) {
   });
 
   if (authError || !authData.user) {
+    const alreadyExists = /already|registered|exists/i.test(authError?.message ?? "");
+    if (alreadyExists) {
+      const { data: listed } = await admin.auth.admin.listUsers({
+        page: 1,
+        perPage: 1000,
+      });
+      const existing = listed?.users?.find(
+        (u) => (u.email ?? "").toLowerCase() === email,
+      );
+      if (existing) {
+        const { data: perfilExistente } = await admin
+          .from("perfiles")
+          .select("id, id_tienda, eliminado_en")
+          .eq("id", existing.id)
+          .maybeSingle();
+
+        if (
+          perfilExistente?.eliminado_en &&
+          perfilExistente.id_tienda === idTienda
+        ) {
+          const { error: reactivateErr } = await admin
+            .from("perfiles")
+            .update({
+              eliminado_en: null,
+              nombre,
+              apellido: apellido || "",
+              rol,
+              debe_cambiar_password: true,
+            })
+            .eq("id", existing.id);
+
+          if (reactivateErr) {
+            return NextResponse.json(
+              {
+                ok: false,
+                error: reactivateErr.message ?? "No se pudo reactivar el usuario.",
+              },
+              { status: 400 },
+            );
+          }
+
+          const { error: unbanErr } = await admin.auth.admin.updateUserById(
+            existing.id,
+            {
+              password,
+              ban_duration: "none",
+              email_confirm: true,
+            },
+          );
+          if (unbanErr) {
+            await admin
+              .from("perfiles")
+              .update({ eliminado_en: perfilExistente.eliminado_en })
+              .eq("id", existing.id);
+            return NextResponse.json(
+              {
+                ok: false,
+                error: unbanErr.message ?? "No se pudo reactivar el acceso.",
+              },
+              { status: 400 },
+            );
+          }
+
+          return NextResponse.json({ ok: true });
+        }
+      }
+    }
+
     return NextResponse.json(
       {
         ok: false,
@@ -98,14 +213,13 @@ export async function POST(request: Request) {
   }
 
   const userId = authData.user.id;
-  const idTienda = miPerfil.id_tienda as string;
 
   const { error: insertErr } = await admin.from("perfiles").insert({
     id: userId,
     id_tienda: idTienda,
     nombre,
     apellido: apellido || "",
-    rol: esAdmin ? "admin" : "normal",
+    rol,
     debe_cambiar_password: true,
   });
 

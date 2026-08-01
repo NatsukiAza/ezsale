@@ -1,0 +1,22 @@
+-- Cuentas de cortesía (amigas / sin cobro).
+-- Ejecutar en Supabase SQL Editor después de la migración de billing.
+--
+-- Por ID de tienda:
+--   update public.tiendas
+--   set cobro_exento = true,
+--       nota_cobro = 'cortesía — amigas'
+--   where id in (
+--     '00000000-0000-0000-0000-000000000001',
+--     '00000000-0000-0000-0000-000000000002'
+--   );
+--
+-- Por nombre (ajustá el patrón):
+--   update public.tiendas
+--   set cobro_exento = true,
+--       nota_cobro = 'cortesía — amigas'
+--   where nombre ilike '%NombreDeLaTienda%';
+--
+-- Verificar:
+--   select id, nombre, cobro_exento, nota_cobro, plan, pagado_hasta
+--   from public.tiendas
+--   order by created_at;
