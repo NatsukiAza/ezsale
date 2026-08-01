@@ -1,18 +1,6 @@
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
-/**
-<<<<<<< Updated upstream
- * La imagen en flujo define el tamaño. La UI se posiciona en % del mismo
- * sistema de coordenadas del PNG (sin object-contain / aspect-ratio aparte).
- * Inset un poco más adentro del hueco para no pegar al bisel / notch.
- */
-const SCREEN = {
-  top: "6.6%",
-  left: "12.35%",
-  right: "12.35%",
-  bottom: "11.4%",
-=======
  * Coordenadas EXACTAS del hueco transparente en
  * public/landing/laptop-mockup.png (4826×2798).
  * Expandidas 1px para evitar filos por redondeo subpixel.
@@ -23,7 +11,6 @@ const SCREEN = {
   left: "11.7696%",
   right: "11.7696%",
   bottom: "10.6862%",
->>>>>>> Stashed changes
 } as const;
 
 type NotebookFrameProps = {
