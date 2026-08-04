@@ -1,18 +1,28 @@
 import { cache } from "react";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import {
   getAccesoTienda,
   type AccesoTienda,
 } from "@/lib/billing/access";
+import { ACTIVE_STORE_COOKIE } from "@/lib/stores/constants";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
+export type RolPerfil = "admin" | "manager" | "normal" | string;
+
 type PerfilBasico = {
+  /** Organización (billing / catálogo). */
+  id_organizacion: string;
+  /** Tienda operativa activa (caja). */
   id_tienda: string;
-  rol: "admin" | "normal" | string;
+  /** Asignación fija; null para admin. */
+  id_tienda_asignada: string | null;
+  rol: RolPerfil;
   nombre: string | null;
   apellido: string | null;
 };
 
+/** Billing vive en organizaciones; se mantiene el nombre de tipo por compat. */
 export type TiendaBillingRow = {
   nombre: string | null;
   created_at: string;
@@ -22,6 +32,7 @@ export type TiendaBillingRow = {
   estado_mp: string | null;
   mp_preapproval_id: string | null;
   nota_cobro: string | null;
+  exceso_tiendas_hasta: string | null;
 };
 
 /**
@@ -44,86 +55,168 @@ export const getServerSession = cache(
   },
 );
 
+async function resolveTiendaActiva(params: {
+  supabase: SupabaseClient;
+  idOrganizacion: string;
+  rol: string;
+  idTiendaAsignada: string | null;
+  cookieId: string | undefined;
+}): Promise<{ id: string; nombre: string } | null> {
+  const { supabase, idOrganizacion, rol, idTiendaAsignada, cookieId } = params;
+
+  if (rol !== "admin") {
+    if (!idTiendaAsignada) return null;
+    const { data } = await supabase
+      .from("tiendas")
+      .select("id, nombre")
+      .eq("id", idTiendaAsignada)
+      .eq("id_organizacion", idOrganizacion)
+      .is("eliminado_en", null)
+      .maybeSingle();
+    if (!data) return null;
+    return { id: data.id as string, nombre: data.nombre as string };
+  }
+
+  // Admin: cookie si es válida; si no, null (debe ir al selector)
+  if (cookieId) {
+    const { data } = await supabase
+      .from("tiendas")
+      .select("id, nombre")
+      .eq("id", cookieId)
+      .eq("id_organizacion", idOrganizacion)
+      .is("eliminado_en", null)
+      .maybeSingle();
+    if (data) {
+      return { id: data.id as string, nombre: data.nombre as string };
+    }
+  }
+  return null;
+}
+
 export const getPerfilTienda = cache(
   async (): Promise<{
     supabase: SupabaseClient | null;
     user: User | null;
     perfil: PerfilBasico | null;
+    /** Nombre de la caja activa. */
     tiendaNombre: string | null;
+    /** Nombre de la organización. */
+    organizacionNombre: string | null;
+    /** Billing de la organización (alias histórico `tienda`). */
     tienda: TiendaBillingRow | null;
     acceso: AccesoTienda | null;
+    tieneTiendaActiva: boolean;
   }> => {
+    const empty = {
+      perfil: null as PerfilBasico | null,
+      tiendaNombre: null as string | null,
+      organizacionNombre: null as string | null,
+      tienda: null as TiendaBillingRow | null,
+      acceso: null as AccesoTienda | null,
+      tieneTiendaActiva: false,
+    };
+
     const { supabase, user } = await getServerSession();
     if (!supabase || !user) {
-      return {
-        supabase,
-        user,
-        perfil: null,
-        tiendaNombre: null,
-        tienda: null,
-        acceso: null,
-      };
+      return { supabase, user, ...empty };
     }
+
     const { data: perfil } = await supabase
       .from("perfiles")
-      .select("id_tienda, rol, nombre, apellido, eliminado_en")
+      .select(
+        "id_organizacion, id_tienda, rol, nombre, apellido, eliminado_en",
+      )
       .eq("id", user.id)
       .maybeSingle();
-    if (!perfil?.id_tienda || perfil.eliminado_en) {
-      return {
-        supabase,
-        user,
-        perfil: null,
-        tiendaNombre: null,
-        tienda: null,
-        acceso: null,
-      };
+
+    if (!perfil?.id_organizacion || perfil.eliminado_en) {
+      return { supabase, user, ...empty };
     }
 
-    const idTienda = perfil.id_tienda as string;
-    const { data: tiendaRow } = await supabase
-      .from("tiendas")
+    const idOrganizacion = perfil.id_organizacion as string;
+    const idTiendaAsignada = (perfil.id_tienda as string | null) ?? null;
+    const rol = perfil.rol as string;
+
+    const { data: orgRow } = await supabase
+      .from("organizaciones")
       .select(
-        "nombre, created_at, cobro_exento, pagado_hasta, plan, estado_mp, mp_preapproval_id, nota_cobro",
+        "nombre, created_at, cobro_exento, pagado_hasta, plan, estado_mp, mp_preapproval_id, nota_cobro, exceso_tiendas_hasta",
       )
-      .eq("id", idTienda)
+      .eq("id", idOrganizacion)
       .maybeSingle();
 
-    const tienda: TiendaBillingRow | null = tiendaRow
+    const organizacion: TiendaBillingRow | null = orgRow
       ? {
-          nombre: (tiendaRow.nombre as string | null) ?? null,
-          created_at: tiendaRow.created_at as string,
-          cobro_exento: Boolean(tiendaRow.cobro_exento),
-          pagado_hasta: (tiendaRow.pagado_hasta as string | null) ?? null,
-          plan: (tiendaRow.plan as string | null) ?? null,
-          estado_mp: (tiendaRow.estado_mp as string | null) ?? null,
+          nombre: (orgRow.nombre as string | null) ?? null,
+          created_at: orgRow.created_at as string,
+          cobro_exento: Boolean(orgRow.cobro_exento),
+          pagado_hasta: (orgRow.pagado_hasta as string | null) ?? null,
+          plan: (orgRow.plan as string | null) ?? null,
+          estado_mp: (orgRow.estado_mp as string | null) ?? null,
           mp_preapproval_id:
-            (tiendaRow.mp_preapproval_id as string | null) ?? null,
-          nota_cobro: (tiendaRow.nota_cobro as string | null) ?? null,
+            (orgRow.mp_preapproval_id as string | null) ?? null,
+          nota_cobro: (orgRow.nota_cobro as string | null) ?? null,
+          exceso_tiendas_hasta:
+            (orgRow.exceso_tiendas_hasta as string | null) ?? null,
         }
       : null;
 
-    const acceso = tienda
+    const acceso = organizacion
       ? getAccesoTienda({
-          created_at: tienda.created_at,
-          cobro_exento: tienda.cobro_exento,
-          pagado_hasta: tienda.pagado_hasta,
-          plan: tienda.plan,
+          created_at: organizacion.created_at,
+          cobro_exento: organizacion.cobro_exento,
+          pagado_hasta: organizacion.pagado_hasta,
+          plan: organizacion.plan,
         })
       : null;
+
+    const cookieStore = await cookies();
+    const cookieId = cookieStore.get(ACTIVE_STORE_COOKIE)?.value;
+
+    const activa = await resolveTiendaActiva({
+      supabase,
+      idOrganizacion,
+      rol,
+      idTiendaAsignada,
+      cookieId,
+    });
+
+    if (!activa) {
+      return {
+        supabase,
+        user,
+        perfil: {
+          id_organizacion: idOrganizacion,
+          id_tienda: "",
+          id_tienda_asignada: idTiendaAsignada,
+          rol,
+          nombre: (perfil.nombre as string | null) ?? null,
+          apellido: (perfil.apellido as string | null) ?? null,
+        },
+        tiendaNombre: null,
+        organizacionNombre: organizacion?.nombre ?? null,
+        tienda: organizacion,
+        acceso,
+        tieneTiendaActiva: false,
+      };
+    }
 
     return {
       supabase,
       user,
       perfil: {
-        id_tienda: idTienda,
-        rol: perfil.rol as string,
+        id_organizacion: idOrganizacion,
+        id_tienda: activa.id,
+        id_tienda_asignada: idTiendaAsignada,
+        rol,
         nombre: (perfil.nombre as string | null) ?? null,
         apellido: (perfil.apellido as string | null) ?? null,
       },
-      tiendaNombre: tienda?.nombre ?? null,
-      tienda,
+      tiendaNombre: activa.nombre,
+      organizacionNombre: organizacion?.nombre ?? null,
+      tienda: organizacion,
       acceso,
+      tieneTiendaActiva: true,
     };
   },
 );

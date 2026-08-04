@@ -124,13 +124,13 @@ function categoriaNombreFromJoin(row: { categorias: unknown }): string | null {
 }
 
 export function ProductsView({
-  idTienda,
+  idOrganizacion,
   isAdmin,
   initialCategorias,
   initialProductos,
   initialLoadError = null,
 }: {
-  idTienda: string;
+  idOrganizacion: string;
   isAdmin: boolean;
   initialCategorias: CategoriaListItem[];
   initialProductos: ProductoListItem[];
@@ -286,14 +286,14 @@ export function ProductsView({
     }
 
     setLoadingList(true);
-    const tid = idTienda;
+    const oid = idOrganizacion;
 
     const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] =
       await Promise.all([
         supabase
           .from("categorias")
           .select("id, nombre, id_padre")
-          .eq("id_tienda", tid)
+          .eq("id_organizacion", oid)
           .is("eliminado_en", null)
           .order("nombre"),
         supabase
@@ -301,7 +301,7 @@ export function ProductsView({
           .select(
             "id, id_categoria, nombre, descripcion, precio_actual, categorias ( nombre )",
           )
-          .eq("id_tienda", tid)
+          .eq("id_organizacion", oid)
           .is("eliminado_en", null)
           .order("nombre"),
       ]);
@@ -349,7 +349,7 @@ export function ProductsView({
       );
     }
     setLoadingList(false);
-  }, [idTienda]);
+  }, [idOrganizacion]);
 
   useEffect(() => {
     setCurrentProductPage(1);
@@ -483,7 +483,7 @@ export function ProductsView({
   }
 
   async function performDelete() {
-    if (!deleteTarget || !isAdmin || !idTienda) return;
+    if (!deleteTarget || !isAdmin || !idOrganizacion) return;
     const supabase = createClient();
     if (!supabase) {
       toast.error("Supabase no está configurado.");
@@ -497,7 +497,7 @@ export function ProductsView({
         .from("productos")
         .update({ eliminado_en: now })
         .eq("id", deleteTarget.item.id)
-        .eq("id_tienda", idTienda)
+        .eq("id_organizacion", idOrganizacion)
         .is("eliminado_en", null)
         .select("id")
         .maybeSingle();
@@ -523,7 +523,7 @@ export function ProductsView({
     const { error: prodErr } = await supabase
       .from("productos")
       .update({ eliminado_en: now })
-      .eq("id_tienda", idTienda)
+      .eq("id_organizacion", idOrganizacion)
       .in("id_categoria", treeIds)
       .is("eliminado_en", null);
 
@@ -536,7 +536,7 @@ export function ProductsView({
     const { error: catErr } = await supabase
       .from("categorias")
       .update({ eliminado_en: now })
-      .eq("id_tienda", idTienda)
+      .eq("id_organizacion", idOrganizacion)
       .in("id", treeIds)
       .is("eliminado_en", null);
 
@@ -561,9 +561,9 @@ export function ProductsView({
 
   async function handleSubmitProducto(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmitProducto) return;
-    if (!idTienda) {
-      setFormError("No se pudo obtener tu tienda. Recargá la página.");
+    if (!isAdmin || !canSubmitProducto) return;
+    if (!idOrganizacion) {
+      setFormError("No se pudo obtener tu organización. Recargá la página.");
       return;
     }
 
@@ -588,9 +588,9 @@ export function ProductsView({
             precio_actual: precioNum,
           })
           .eq("id", editing)
-          .eq("id_tienda", idTienda)
+          .eq("id_organizacion", idOrganizacion)
       : await supabase.from("productos").insert({
-          id_tienda: idTienda,
+          id_organizacion: idOrganizacion,
           id_categoria: idCategoria,
           nombre: nombre.trim(),
           descripcion: descripcion.trim(),
@@ -613,9 +613,9 @@ export function ProductsView({
 
   async function handleSubmitCategoria(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmitCategoria) return;
-    if (!idTienda) {
-      setFormError("No se pudo obtener tu tienda. Recargá la página.");
+    if (!isAdmin || !canSubmitCategoria) return;
+    if (!idOrganizacion) {
+      setFormError("No se pudo obtener tu organización. Recargá la página.");
       return;
     }
 
@@ -637,9 +637,9 @@ export function ProductsView({
             id_padre: esSubcategoria && idPadre ? idPadre : null,
           })
           .eq("id", editing)
-          .eq("id_tienda", idTienda)
+          .eq("id_organizacion", idOrganizacion)
       : await supabase.from("categorias").insert({
-          id_tienda: idTienda,
+          id_organizacion: idOrganizacion,
           nombre: catNombre.trim(),
           id_padre: esSubcategoria && idPadre ? idPadre : null,
         });

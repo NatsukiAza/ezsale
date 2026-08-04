@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { getAccesoTienda } from "@/lib/billing/access";
+import { ACTIVE_STORE_COOKIE } from "@/lib/stores/constants";
 import {
   GATE_COOKIE,
   GATE_TTL_MS,
@@ -15,7 +16,8 @@ function needsPerfilGate(path: string, isProtected: boolean, isAuthPage: boolean
     path.startsWith("/auth/cambiar-password") ||
     path.startsWith("/reports") ||
     path.startsWith("/team") ||
-    path.startsWith("/cuenta")
+    path.startsWith("/cuenta") ||
+    path.startsWith("/seleccionar-tienda")
   );
 }
 
@@ -33,6 +35,10 @@ function redirectWithCookies(
   return redirect;
 }
 
+function puedeVerTeamOReports(rol: string) {
+  return rol === "admin" || rol === "manager";
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -42,16 +48,20 @@ export async function updateSession(request: NextRequest) {
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   const path = request.nextUrl.pathname;
-  const isProtected =
+  const isAppShell =
     path.startsWith("/dashboard") ||
     path.startsWith("/new-sale") ||
     path.startsWith("/products") ||
     path.startsWith("/reports") ||
-    path.startsWith("/team") ||
+    path.startsWith("/team");
+  const isProtected =
+    isAppShell ||
     path.startsWith("/cuenta") ||
-    path.startsWith("/registro/completar");
+    path.startsWith("/registro/completar") ||
+    path.startsWith("/seleccionar-tienda");
   const isAuthPage = path === "/login" || path === "/registro";
   const isCuenta = path.startsWith("/cuenta");
+  const isSelector = path.startsWith("/seleccionar-tienda");
 
   if (!url || !key) {
     if (isProtected) {
@@ -97,20 +107,20 @@ export async function updateSession(request: NextRequest) {
   }
 
   let debeCambiarPassword = false;
-  let esAdmin = false;
+  let rol = "normal";
   let billingBlocked = false;
+  let tieneOrg = false;
 
   if (user && needsPerfilGate(path, isProtected, isAuthPage)) {
     const cached = parseGate(request.cookies.get(GATE_COOKIE)?.value);
-    // En /cuenta siempre refrescar cobro (vuelta de MP / pago reciente)
-    const forceBillingRefresh = isCuenta;
+    const forceBillingRefresh = isCuenta || isSelector;
 
     if (cached && !forceBillingRefresh) {
       debeCambiarPassword = cached.debeCambiarPassword;
-      esAdmin = cached.rol === "admin";
+      rol = cached.rol;
       billingBlocked = cached.billingBlocked;
+      tieneOrg = true;
 
-      // Soft-delete sigue requiriendo lectura de perfil
       const { data: perfilSoft } = await supabase
         .from("perfiles")
         .select("eliminado_en")
@@ -128,7 +138,9 @@ export async function updateSession(request: NextRequest) {
     } else {
       const { data: perfil } = await supabase
         .from("perfiles")
-        .select("debe_cambiar_password, rol, eliminado_en, id_tienda")
+        .select(
+          "debe_cambiar_password, rol, eliminado_en, id_organizacion, id_tienda",
+        )
         .eq("id", user.id)
         .maybeSingle();
 
@@ -143,21 +155,22 @@ export async function updateSession(request: NextRequest) {
       }
 
       debeCambiarPassword = perfil?.debe_cambiar_password === true;
-      esAdmin = perfil?.rol === "admin";
+      rol = (perfil?.rol as string) ?? "normal";
+      tieneOrg = Boolean(perfil?.id_organizacion);
 
       let billingPhase = "ok";
-      if (perfil?.id_tienda) {
-        const { data: tienda } = await supabase
-          .from("tiendas")
+      if (perfil?.id_organizacion) {
+        const { data: org } = await supabase
+          .from("organizaciones")
           .select("created_at, cobro_exento, pagado_hasta, plan")
-          .eq("id", perfil.id_tienda)
+          .eq("id", perfil.id_organizacion)
           .maybeSingle();
-        if (tienda) {
+        if (org) {
           const acceso = getAccesoTienda({
-            created_at: tienda.created_at as string,
-            cobro_exento: Boolean(tienda.cobro_exento),
-            pagado_hasta: (tienda.pagado_hasta as string | null) ?? null,
-            plan: (tienda.plan as string | null) ?? null,
+            created_at: org.created_at as string,
+            cobro_exento: Boolean(org.cobro_exento),
+            pagado_hasta: (org.pagado_hasta as string | null) ?? null,
+            plan: (org.plan as string | null) ?? null,
           });
           billingBlocked = !acceso.allowed;
           billingPhase = acceso.phase;
@@ -168,7 +181,7 @@ export async function updateSession(request: NextRequest) {
         GATE_COOKIE,
         serializeGate({
           debeCambiarPassword,
-          rol: (perfil?.rol as string) ?? "normal",
+          rol,
           billingBlocked,
           billingPhase,
         }),
@@ -200,7 +213,7 @@ export async function updateSession(request: NextRequest) {
       );
     }
   } else if (path.startsWith("/auth/cambiar-password") && user) {
-    return redirectWithCookies(request, "/dashboard", supabaseResponse);
+    return redirectWithCookies(request, "/seleccionar-tienda", supabaseResponse);
   }
 
   if (
@@ -214,10 +227,20 @@ export async function updateSession(request: NextRequest) {
     return redirectWithCookies(request, "/cuenta", supabaseResponse);
   }
 
+  // App shell requiere cookie de tienda activa (admins) o asignación (manager/normal)
+  if (user && !debeCambiarPassword && !billingBlocked && isAppShell && tieneOrg) {
+    const cookieStore = request.cookies.get(ACTIVE_STORE_COOKIE)?.value;
+    const needsStore =
+      rol === "admin" ? !cookieStore : false; // manager/normal se resuelven en layout
+    if (rol === "admin" && needsStore) {
+      return redirectWithCookies(request, "/seleccionar-tienda", supabaseResponse);
+    }
+  }
+
   if (
     user &&
     !debeCambiarPassword &&
-    !esAdmin &&
+    !puedeVerTeamOReports(rol) &&
     (path.startsWith("/reports") || path.startsWith("/team"))
   ) {
     return redirectWithCookies(request, "/dashboard", supabaseResponse);
@@ -228,7 +251,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (isAuthPage && user) {
-    return redirectWithCookies(request, "/dashboard", supabaseResponse);
+    return redirectWithCookies(request, "/seleccionar-tienda", supabaseResponse);
   }
 
   return supabaseResponse;

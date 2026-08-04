@@ -14,7 +14,8 @@ export default async function CuentaPage({
 }) {
   const { user, perfil, tienda, acceso, tiendaNombre } = await getPerfilTienda();
   if (!user) redirect("/login");
-  if (!perfil?.id_tienda || !tienda || !acceso) redirect("/registro/completar");
+  if (!perfil?.id_organizacion || !tienda || !acceso)
+    redirect("/registro/completar");
 
   const sp = await searchParams;
   const returnedFromMp = sp.mp === "return";

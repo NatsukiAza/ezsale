@@ -75,6 +75,8 @@ type VentaRow = {
   descuento_monto?: number | string | null;
   id_usuario: string;
   id_medio_pago: string;
+  id_tienda?: string | null;
+  tienda_nombre?: string | null;
   medios_pago: { nombre: string } | { nombre: string }[] | null;
   /** null = aún no cargado; [] = sin líneas. */
   detalle_ventas: DetalleVentaRow[] | null;
@@ -190,18 +192,27 @@ function formatDateTimeLabel(iso: string) {
 
 export function ReportsView({
   idTienda,
+  idOrganizacion,
+  scope = "store",
+  embedded = false,
   initialVentas,
   initialNamesByUser,
   initialLoadError = null,
   /** Fecha mínima inclusive (YYYY-MM-DD) según historial del plan. null = sin tope. */
   reportesMinYmd = null,
 }: {
-  idTienda: string;
+  idTienda?: string;
+  idOrganizacion: string;
+  /** store = una caja; org = todas las tiendas de la organización (solo admin). */
+  scope?: "store" | "org";
+  /** Sin chrome de página de app (p. ej. pestaña en selector). */
+  embedded?: boolean;
   initialVentas: VentaRow[];
   initialNamesByUser: Record<string, string>;
   initialLoadError?: string | null;
   reportesMinYmd?: string | null;
 }) {
+  const isOrgScope = scope === "org";
   const [period, setPeriod] = useState<Period>("day");
   const [dayDate, setDayDate] = useState(todayLocalYmd);
   const [monthAnchor, setMonthAnchor] = useState(() => {
@@ -214,7 +225,7 @@ export function ReportsView({
   const [namesByUser, setNamesByUser] =
     useState<Record<string, string>>(initialNamesByUser);
   const [loadError, setLoadError] = useState<string | null>(initialLoadError);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(isOrgScope);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loadingDetalleId, setLoadingDetalleId] = useState<string | null>(null);
 
@@ -296,30 +307,47 @@ export function ReportsView({
         return;
       }
 
-      const tid = idTienda;
+      if (!isOrgScope && !idTienda) {
+        setLoadError("Falta la tienda activa.");
+        return;
+      }
 
-      const [ventasRes, perfilesRes] = await Promise.all([
-        supabase
-          .from("ventas")
-          .select(
-            `
+      let ventasQuery = supabase
+        .from("ventas")
+        .select(
+          `
         id,
         fecha_venta,
         monto_total,
         descuento_monto,
         id_usuario,
         id_medio_pago,
+        id_tienda,
         medios_pago ( nombre )
       `,
-          )
-          .eq("id_tienda", tid)
-          .gte("fecha_venta", start.toISOString())
-          .lt("fecha_venta", end.toISOString())
-          .order("fecha_venta", { ascending: false }),
-        supabase
-          .from("perfiles")
-          .select("id, nombre, apellido")
-          .eq("id_tienda", tid),
+        )
+        .gte("fecha_venta", start.toISOString())
+        .lt("fecha_venta", end.toISOString())
+        .order("fecha_venta", { ascending: false });
+
+      if (!isOrgScope && idTienda) {
+        ventasQuery = ventasQuery.eq("id_tienda", idTienda);
+      }
+
+      const perfilesQuery = isOrgScope
+        ? supabase
+            .from("perfiles")
+            .select("id, nombre, apellido")
+            .eq("id_organizacion", idOrganizacion)
+        : supabase
+            .from("perfiles")
+            .select("id, nombre, apellido")
+            .eq("id_organizacion", idOrganizacion)
+            .or(`id_tienda.eq.${idTienda},id_tienda.is.null`);
+
+      const [ventasRes, perfilesRes] = await Promise.all([
+        ventasQuery,
+        perfilesQuery,
       ]);
 
       if (ventasRes.error) {
@@ -328,16 +356,39 @@ export function ReportsView({
         return;
       }
 
-      const list = (ventasRes.data ?? []).map((row) => ({
-        id: row.id as string,
-        fecha_venta: row.fecha_venta as string,
-        monto_total: row.monto_total as number | string,
-        descuento_monto: (row.descuento_monto as number | string | null) ?? 0,
-        id_usuario: row.id_usuario as string,
-        id_medio_pago: row.id_medio_pago as string,
-        medios_pago: row.medios_pago as VentaRow["medios_pago"],
-        detalle_ventas: null,
-      }));
+      const tiendaIds = [
+        ...new Set(
+          (ventasRes.data ?? [])
+            .map((r) => r.id_tienda as string | null)
+            .filter((id): id is string => Boolean(id)),
+        ),
+      ];
+      const nombresTienda: Record<string, string> = {};
+      if (isOrgScope && tiendaIds.length > 0) {
+        const { data: tiendasRows } = await supabase
+          .from("tiendas")
+          .select("id, nombre")
+          .in("id", tiendaIds);
+        for (const t of tiendasRows ?? []) {
+          nombresTienda[t.id as string] = (t.nombre as string) || "Tienda";
+        }
+      }
+
+      const list = (ventasRes.data ?? []).map((row) => {
+        const tid = (row.id_tienda as string | null) ?? null;
+        return {
+          id: row.id as string,
+          fecha_venta: row.fecha_venta as string,
+          monto_total: row.monto_total as number | string,
+          descuento_monto: (row.descuento_monto as number | string | null) ?? 0,
+          id_usuario: row.id_usuario as string,
+          id_medio_pago: row.id_medio_pago as string,
+          id_tienda: tid,
+          tienda_nombre: tid ? (nombresTienda[tid] ?? null) : null,
+          medios_pago: row.medios_pago as VentaRow["medios_pago"],
+          detalle_ventas: null,
+        };
+      });
       setVentas(list);
 
       const nm: Record<string, string> = {};
@@ -355,7 +406,7 @@ export function ReportsView({
     } finally {
       setLoading(false);
     }
-  }, [idTienda, start, end]);
+  }, [idTienda, idOrganizacion, isOrgScope, start, end]);
 
   const isInitialDayRange = useMemo(() => {
     const today = dayStartEnd(todayLocalYmd());
@@ -366,7 +417,9 @@ export function ReportsView({
     );
   }, [period, start, end]);
 
-  const skipFirstFetch = useRef(isInitialDayRange);
+  const skipFirstFetch = useRef(
+    !isOrgScope && isInitialDayRange && initialVentas.length > 0,
+  );
 
   useEffect(() => {
     if (skipFirstFetch.current) {
@@ -426,7 +479,7 @@ export function ReportsView({
       supabase
         .from("productos")
         .select("id, nombre, precio_actual")
-        .eq("id_tienda", idTienda)
+        .eq("id_organizacion", idOrganizacion)
         .is("eliminado_en", null)
         .order("nombre"),
     ]);
@@ -701,10 +754,14 @@ export function ReportsView({
   const canPrevYear = minYear == null || yearAnchor > minYear;
 
   return (
-    <div className="pb-10">
+    <div className={cn("pb-10", embedded && "px-0")}>
       <PageHeader
-        title="Reportes"
-        description={capitalize(rangeLabel)}
+        title={isOrgScope ? "Reportes de todas las tiendas" : "Reportes"}
+        description={
+          isOrgScope
+            ? `Consolidado · ${capitalize(rangeLabel)}`
+            : capitalize(rangeLabel)
+        }
         actions={<PrivacyToggle />}
       />
 
@@ -898,6 +955,9 @@ export function ReportsView({
                 <DataTableRow className="hover:bg-transparent">
                   <DataTableHead className="w-8" />
                   <DataTableHead>Fecha</DataTableHead>
+                  {isOrgScope ? (
+                    <DataTableHead>Tienda</DataTableHead>
+                  ) : null}
                   <DataTableHead>Vendedor</DataTableHead>
                   <DataTableHead>Medio de pago</DataTableHead>
                   <DataTableHead className="text-right">Monto</DataTableHead>
@@ -942,6 +1002,11 @@ export function ReportsView({
                             </span>
                           </div>
                         </DataTableCell>
+                        {isOrgScope ? (
+                          <DataTableCell className="text-muted-foreground">
+                            {v.tienda_nombre ?? "—"}
+                          </DataTableCell>
+                        ) : null}
                         <DataTableCell>{usuario}</DataTableCell>
                         <DataTableCell className="text-muted-foreground">
                           {medioNombre(v)}
@@ -978,7 +1043,7 @@ export function ReportsView({
                       {isOpen ? (
                         <DataTableRow className="hover:bg-transparent">
                           <DataTableCell
-                            colSpan={6}
+                            colSpan={isOrgScope ? 7 : 6}
                             className="bg-surface-sunken/60 py-3"
                           >
                             {detalles == null || loadingDetalleId === v.id ? (

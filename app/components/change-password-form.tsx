@@ -66,7 +66,7 @@ export function ChangePasswordForm() {
 
     clearGateCookieClient();
     setLoading(false);
-    router.push("/dashboard");
+    router.push("/seleccionar-tienda");
     router.refresh();
   }
 

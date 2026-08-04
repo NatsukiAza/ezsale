@@ -11,21 +11,29 @@ alwaysApply: true
 
 # Database Schema (Supabase/PostgreSQL)
 
-- **tiendas**: id (uuid), nombre, plan ('local'|'sucursales'|'cadena'|'empresa'|null), cobro_exento (bool; cortesía sin cobro), nota_cobro, pagado_hasta, mp_preapproval_id, mp_payer_email, estado_mp, tyc_aceptados_en (timestamptz; consentimiento TyC al registrar), tyc_version (text; ej. '2026-08'), created_at.
-- **perfiles**: id (references auth.users), id_tienda, nombre, apellido, rol ('admin', 'normal'), eliminado_en (null = activo; soft-delete).
-- **categorias**: id, id_tienda, nombre, id_padre (self-reference para subcategorías), eliminado_en (null = activa; soft-delete).
-- **productos**: id, id_tienda, id_categoria, nombre, descripcion, precio_actual, eliminado_en (null = activo; soft-delete).
+- **organizaciones**: id (uuid), nombre, plan ('local'|'sucursales'|'cadena'|'empresa'|null), cobro_exento (bool; cortesía sin cobro), nota_cobro, pagado_hasta, mp_preapproval_id, mp_payer_email, estado_mp, exceso_tiendas_hasta (timestamptz; gracia 15d al bajar de plan con tiendas de más), tyc_aceptados_en, tyc_version, created_at. Billing y catálogo viven aquí.
+- **tiendas**: id, id_organizacion, nombre, eliminado_en (null = activa; soft-delete), created_at. Cajas/sucursales operativas.
+- **perfiles**: id (references auth.users), id_organizacion, id_tienda (null si rol=admin; obligatoria si manager/normal), nombre, apellido, rol ('admin'|'manager'|'normal'), eliminado_en (null = activo; soft-delete).
+- **categorias**: id, id_organizacion, nombre, id_padre (self-reference), eliminado_en.
+- **productos**: id, id_organizacion, id_categoria, nombre, descripcion, precio_actual, eliminado_en.
 - **medios_pago**: id, nombre.
-- **ventas**: id, id_tienda, id_usuario, id_medio_pago, monto_total, descuento_monto, fecha_venta.
+- **ventas**: id, id_tienda (caja), id_usuario, id_medio_pago, monto_total, descuento_monto, fecha_venta.
 - **detalle_ventas**: id, id_venta, id_product, cantidad, precio_unitario_historico, subtotal, descuento_porcentaje.
-- **mp_webhook_events**: id (text PK), topic, processed_at, email_enviado — idempotencia de webhooks Mercado Pago (solo service role).
+- **mp_webhook_events**: id (text PK), topic, processed_at, email_enviado — idempotencia webhooks MP (solo service role).
 
 ## Business Rules
 
+- Multi-tenant: catálogo y billing por `id_organizacion`; ventas/caja por `id_tienda`.
+- Catálogo compartido entre todas las tiendas de la org. Solo `admin` muta productos/categorías.
+- `admin`: ve todas las tiendas (elige activa vía cookie). `manager`/`normal`: una tienda fija.
+- Soft-delete de tienda → soft-delete en cascada de usuarios manager/normal de esa tienda (restaurables).
+- Soft-delete ≥ 60 días → purga definitiva (ventas, usuarios y tienda). Admin puede purgar antes desde el selector.
+- Downgrade con exceso de tiendas: `exceso_tiendas_hasta` (+15 días); luego soft-delete de las más nuevas.
+- Límites de plan: maxUsuarios y maxTiendas (local 1, sucursales 5, cadena 20, empresa ∞).
 - Un producto puede pertenecer a una categoría o subcategoría (vía id_categoria).
 - El precio de venta se congela en `detalle_ventas.precio_unitario_historico`.
-- `ventas.descuento_monto` es un descuento fijo en pesos sobre el subtotal de líneas; `monto_total = max(0, subtotal_lineas - descuento_monto)`.
-- El sistema es Multi-tenant: siempre filtrar por `id_tienda`.
-- Listados de catálogo / nueva venta: filtrar `eliminado_en is null`. Las ventas históricas siguen resolviendo nombre vía join aunque el producto esté soft-deleted.
+- `ventas.descuento_monto` es descuento fijo en pesos; `monto_total = max(0, subtotal_lineas - descuento_monto)`.
+- Listados de catálogo / nueva venta: `eliminado_en is null`. Ventas históricas resuelven nombre vía join aunque el producto esté soft-deleted.
 - Al soft-deletear una categoría se soft-deleta sus productos y subcategorías.
-- Suscripción: cobro a nivel `tiendas`. Si `cobro_exento`, nunca se bloquea. Sin pagos, trial = `created_at + 30 días`. Con `pagado_hasta`, gracia de 30 días y luego bloqueo total. Recibo de pago por email solo a admins (no es factura AFIP).
+- Suscripción a nivel organización. Si `cobro_exento`, nunca se bloquea. Sin pagos, trial = `created_at + 30 días`. Con `pagado_hasta`, gracia de 30 días y luego bloqueo. Recibo de pago por email solo a admins.
+- Si `plan` es null (cortesía/caridad), los límites de usuarios/tiendas/reportes son los del plan Cadena.

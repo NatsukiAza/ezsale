@@ -1,7 +1,9 @@
+import { cookies } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { assertBillingAllowed } from "@/lib/billing/assert-access";
 import { getPlan, parsePlanId } from "@/lib/billing/plans";
+import { ACTIVE_STORE_COOKIE } from "@/lib/stores/constants";
 import { NextResponse } from "next/server";
 
 type Body = {
@@ -9,6 +11,8 @@ type Body = {
   password?: string;
   nombre?: string;
   apellido?: string;
+  rol?: "admin" | "manager" | "normal";
+  /** @deprecated usar rol */
   esAdmin?: boolean;
 };
 
@@ -34,47 +38,77 @@ export async function POST(request: Request) {
 
   const { data: miPerfil, error: perfilErr } = await supabase
     .from("perfiles")
-    .select("id_tienda, rol, eliminado_en")
+    .select("id_organizacion, id_tienda, rol, eliminado_en")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (perfilErr || !miPerfil?.id_tienda || miPerfil.eliminado_en) {
+  if (perfilErr || !miPerfil?.id_organizacion || miPerfil.eliminado_en) {
     return NextResponse.json(
       { ok: false, error: perfilErr?.message ?? "No se encontró tu perfil." },
       { status: 400 },
     );
   }
 
-  if (miPerfil.rol !== "admin") {
+  const miRol = miPerfil.rol as string;
+  if (miRol !== "admin" && miRol !== "manager") {
     return NextResponse.json(
-      { ok: false, error: "Solo los administradores pueden invitar usuarios." },
+      { ok: false, error: "No tenés permiso para invitar usuarios." },
       { status: 403 },
     );
   }
 
-  const idTienda = miPerfil.id_tienda as string;
+  const idOrg = miPerfil.id_organizacion as string;
+  const cookieStore = await cookies();
+  const cookieTienda = cookieStore.get(ACTIVE_STORE_COOKIE)?.value;
 
-  const { data: tiendaBilling } = await supabase
+  let idTiendaActiva: string | null =
+    miRol === "admin"
+      ? cookieTienda ?? null
+      : (miPerfil.id_tienda as string | null);
+
+  if (!idTiendaActiva) {
+    return NextResponse.json(
+      { ok: false, error: "Seleccioná una tienda antes de invitar." },
+      { status: 400 },
+    );
+  }
+
+  // Validar tienda pertenece a la org
+  const { data: tiendaOk } = await supabase
     .from("tiendas")
+    .select("id")
+    .eq("id", idTiendaActiva)
+    .eq("id_organizacion", idOrg)
+    .is("eliminado_en", null)
+    .maybeSingle();
+  if (!tiendaOk) {
+    return NextResponse.json(
+      { ok: false, error: "Tienda no válida." },
+      { status: 400 },
+    );
+  }
+
+  const { data: orgBilling } = await supabase
+    .from("organizaciones")
     .select("created_at, cobro_exento, pagado_hasta, plan")
-    .eq("id", idTienda)
+    .eq("id", idOrg)
     .maybeSingle();
 
-  if (tiendaBilling) {
+  if (orgBilling) {
     const blocked = assertBillingAllowed({
-      created_at: tiendaBilling.created_at as string,
-      cobro_exento: Boolean(tiendaBilling.cobro_exento),
-      pagado_hasta: (tiendaBilling.pagado_hasta as string | null) ?? null,
-      plan: (tiendaBilling.plan as string | null) ?? null,
+      created_at: orgBilling.created_at as string,
+      cobro_exento: Boolean(orgBilling.cobro_exento),
+      pagado_hasta: (orgBilling.pagado_hasta as string | null) ?? null,
+      plan: (orgBilling.plan as string | null) ?? null,
     });
     if (blocked) return blocked;
   }
 
-  const plan = getPlan(parsePlanId(tiendaBilling?.plan));
+  const plan = getPlan(parsePlanId(orgBilling?.plan));
   const { count: activosCount, error: countErr } = await supabase
     .from("perfiles")
     .select("id", { count: "exact", head: true })
-    .eq("id_tienda", idTienda)
+    .eq("id_organizacion", idOrg)
     .is("eliminado_en", null);
 
   if (countErr) {
@@ -111,7 +145,20 @@ export async function POST(request: Request) {
   const password = typeof body.password === "string" ? body.password : "";
   const nombre = typeof body.nombre === "string" ? body.nombre.trim() : "";
   const apellido = typeof body.apellido === "string" ? body.apellido.trim() : "";
-  const esAdmin = body.esAdmin === true;
+
+  let rol: "admin" | "manager" | "normal" =
+    body.rol === "admin" || body.rol === "manager" || body.rol === "normal"
+      ? body.rol
+      : body.esAdmin === true
+        ? "admin"
+        : "normal";
+
+  if (miRol === "manager" && rol === "admin") {
+    return NextResponse.json(
+      { ok: false, error: "Un manager no puede crear administradores." },
+      { status: 403 },
+    );
+  }
 
   if (!email || !password || !nombre) {
     return NextResponse.json(
@@ -126,7 +173,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const rol = esAdmin ? "admin" : "normal";
+  const idTiendaPerfil = rol === "admin" ? null : idTiendaActiva;
 
   const { data: authData, error: authError } = await admin.auth.admin.createUser({
     email,
@@ -147,13 +194,13 @@ export async function POST(request: Request) {
       if (existing) {
         const { data: perfilExistente } = await admin
           .from("perfiles")
-          .select("id, id_tienda, eliminado_en")
+          .select("id, id_organizacion, id_tienda, eliminado_en")
           .eq("id", existing.id)
           .maybeSingle();
 
         if (
           perfilExistente?.eliminado_en &&
-          perfilExistente.id_tienda === idTienda
+          perfilExistente.id_organizacion === idOrg
         ) {
           const { error: reactivateErr } = await admin
             .from("perfiles")
@@ -162,6 +209,7 @@ export async function POST(request: Request) {
               nombre,
               apellido: apellido || "",
               rol,
+              id_tienda: idTiendaPerfil,
               debe_cambiar_password: true,
             })
             .eq("id", existing.id);
@@ -216,7 +264,8 @@ export async function POST(request: Request) {
 
   const { error: insertErr } = await admin.from("perfiles").insert({
     id: userId,
-    id_tienda: idTienda,
+    id_organizacion: idOrg,
+    id_tienda: idTiendaPerfil,
     nombre,
     apellido: apellido || "",
     rol,

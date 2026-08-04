@@ -8,13 +8,17 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, perfil, tiendaNombre, acceso } = await getPerfilTienda();
+  const { user, perfil, tiendaNombre, acceso, tieneTiendaActiva } =
+    await getPerfilTienda();
 
   if (!user) {
     redirect("/login");
   }
-  if (!perfil?.id_tienda) {
+  if (!perfil?.id_organizacion) {
     redirect("/registro/completar");
+  }
+  if (!tieneTiendaActiva || !perfil.id_tienda) {
+    redirect("/seleccionar-tienda");
   }
 
   const displayName =
@@ -22,12 +26,15 @@ export default async function AppLayout({
     user.email?.split("@")[0] ||
     "Usuario";
 
+  const canManageTeam = perfil.rol === "admin" || perfil.rol === "manager";
+
   return (
     <AppShell
       user={{
         displayName,
         email: user.email,
         isAdmin: perfil.rol === "admin",
+        canManageTeam,
         tiendaNombre,
       }}
       banner={

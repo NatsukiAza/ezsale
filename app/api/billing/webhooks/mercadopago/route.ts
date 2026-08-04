@@ -49,12 +49,12 @@ async function syncPreapproval(preapprovalId: string) {
   if (!admin || !client) return;
 
   const sub = await client.get({ id: preapprovalId });
-  const tiendaId =
+  const orgId =
     typeof sub.external_reference === "string"
       ? sub.external_reference
       : null;
 
-  let query = admin.from("tiendas").update({
+  let query = admin.from("organizaciones").update({
     estado_mp: sub.status ?? null,
     mp_preapproval_id: sub.id ?? preapprovalId,
     ...(sub.payer_email ? { mp_payer_email: sub.payer_email } : {}),
@@ -63,8 +63,8 @@ async function syncPreapproval(preapprovalId: string) {
       : {}),
   });
 
-  if (tiendaId) {
-    query = query.eq("id", tiendaId);
+  if (orgId) {
+    query = query.eq("id", orgId);
   } else {
     query = query.eq("mp_preapproval_id", preapprovalId);
   }
@@ -90,7 +90,7 @@ async function syncAuthorizedPayment(
     return;
   }
 
-  let tiendaId: string | null =
+  let orgId: string | null =
     typeof invoice.external_reference === "string"
       ? invoice.external_reference
       : null;
@@ -100,8 +100,8 @@ async function syncAuthorizedPayment(
   if (preApproval) {
     try {
       const sub = await preApproval.get({ id: preapprovalId });
-      if (!tiendaId && typeof sub.external_reference === "string") {
-        tiendaId = sub.external_reference;
+      if (!orgId && typeof sub.external_reference === "string") {
+        orgId = sub.external_reference;
       }
       nextPayment = sub.next_payment_date ?? null;
       estadoMp = sub.status ?? null;
@@ -114,11 +114,11 @@ async function syncAuthorizedPayment(
     paymentStatus === "approved" || invoice.status === "processed";
 
   if (!approved) {
-    if (tiendaId && estadoMp) {
+    if (orgId && estadoMp) {
       await admin
-        .from("tiendas")
+        .from("organizaciones")
         .update({ estado_mp: estadoMp, mp_preapproval_id: preapprovalId })
-        .eq("id", tiendaId);
+        .eq("id", orgId);
     }
     return;
   }
@@ -129,8 +129,8 @@ async function syncAuthorizedPayment(
         new Date(invoice.debit_date ?? invoice.date_created ?? Date.now()),
       );
 
-  let tiendaQuery = admin
-    .from("tiendas")
+  let orgQuery = admin
+    .from("organizaciones")
     .update({
       pagado_hasta: pagadoHasta.toISOString(),
       estado_mp: estadoMp ?? "authorized",
@@ -138,20 +138,20 @@ async function syncAuthorizedPayment(
     })
     .select("id, nombre, plan, pagado_hasta");
 
-  if (tiendaId) {
-    tiendaQuery = tiendaQuery.eq("id", tiendaId);
+  if (orgId) {
+    orgQuery = orgQuery.eq("id", orgId);
   } else {
-    tiendaQuery = tiendaQuery.eq("mp_preapproval_id", preapprovalId);
+    orgQuery = orgQuery.eq("mp_preapproval_id", preapprovalId);
   }
 
-  const { data: tiendas, error } = await tiendaQuery;
+  const { data: orgs, error } = await orgQuery;
   if (error) {
-    console.error("[billing] update tienda on payment", error);
+    console.error("[billing] update org on payment", error);
     return;
   }
 
-  const tienda = tiendas?.[0];
-  if (!tienda) return;
+  const org = orgs?.[0];
+  if (!org) return;
 
   const { data: ev } = await admin
     .from("mp_webhook_events")
@@ -164,7 +164,7 @@ async function syncAuthorizedPayment(
   const { data: admins } = await admin
     .from("perfiles")
     .select("id")
-    .eq("id_tienda", tienda.id)
+    .eq("id_organizacion", org.id)
     .eq("rol", "admin")
     .is("eliminado_en", null);
 
@@ -178,11 +178,11 @@ async function syncAuthorizedPayment(
 
   const paymentId =
     invoice.payment?.id?.toString() ?? invoice.id?.toString() ?? invoiceId;
-  const plan = parsePlanId(tienda.plan);
+  const plan = parsePlanId(org.plan);
 
   const result = await sendSubscriptionReceiptEmail({
     to: emails,
-    tiendaNombre: (tienda.nombre as string) || "Tu tienda",
+    tiendaNombre: (org.nombre as string) || "Tu negocio",
     plan,
     montoArs:
       typeof invoice.transaction_amount === "number"

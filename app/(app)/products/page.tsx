@@ -24,16 +24,16 @@ function categoriaNombreFromJoin(row: { categorias: unknown }): string | null {
 export default async function ProductsPage() {
   const { supabase, user, perfil } = await getPerfilTienda();
   if (!supabase || !user) redirect("/login");
-  if (!perfil?.id_tienda) redirect("/registro/completar");
+  if (!perfil?.id_organizacion) redirect("/registro/completar");
 
-  const idTienda = perfil.id_tienda;
+  const idOrganizacion = perfil.id_organizacion;
   const isAdmin = perfil.rol === "admin";
 
   const [catsRes, prodsRes] = await Promise.all([
     supabase
       .from("categorias")
       .select("id, nombre, id_padre")
-      .eq("id_tienda", idTienda)
+      .eq("id_organizacion", idOrganizacion)
       .is("eliminado_en", null)
       .order("nombre"),
     supabase
@@ -41,7 +41,7 @@ export default async function ProductsPage() {
       .select(
         "id, id_categoria, nombre, descripcion, precio_actual, categorias ( nombre )",
       )
-      .eq("id_tienda", idTienda)
+      .eq("id_organizacion", idOrganizacion)
       .is("eliminado_en", null)
       .order("nombre"),
   ]);
@@ -83,7 +83,7 @@ export default async function ProductsPage() {
 
   return (
     <ProductsView
-      idTienda={idTienda}
+      idOrganizacion={idOrganizacion}
       isAdmin={isAdmin}
       initialCategorias={categorias}
       initialProductos={productos}

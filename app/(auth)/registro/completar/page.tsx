@@ -27,7 +27,7 @@ export default async function CompletarRegistroPage() {
     .maybeSingle();
 
   if (perfil) {
-    redirect("/dashboard");
+    redirect("/seleccionar-tienda");
   }
 
   return (

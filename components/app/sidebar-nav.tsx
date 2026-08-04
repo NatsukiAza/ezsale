@@ -38,18 +38,20 @@ import {
 } from "@/components/ui/tooltip";
 
 const navItems = [
-  { href: "/new-sale", label: "Nueva venta", icon: Plus, adminOnly: false },
-  { href: "/dashboard", label: "Panel", icon: LayoutDashboard, adminOnly: false },
-  { href: "/products", label: "Productos", icon: Package, adminOnly: false },
-  { href: "/reports", label: "Reportes", icon: ChartColumn, adminOnly: true },
-  { href: "/team", label: "Equipo", icon: Users, adminOnly: true },
-  { href: "/cuenta", label: "Cuenta", icon: CreditCard, adminOnly: false },
+  { href: "/new-sale", label: "Nueva venta", icon: Plus, teamOnly: false },
+  { href: "/dashboard", label: "Panel", icon: LayoutDashboard, teamOnly: false },
+  { href: "/products", label: "Productos", icon: Package, teamOnly: false },
+  { href: "/reports", label: "Reportes", icon: ChartColumn, teamOnly: true },
+  { href: "/team", label: "Equipo", icon: Users, teamOnly: true },
+  { href: "/cuenta", label: "Cuenta", icon: CreditCard, teamOnly: false },
 ] as const;
 
 export type SidebarUser = {
   displayName: string;
   email?: string | null;
   isAdmin: boolean;
+  /** admin o manager: reportes / equipo */
+  canManageTeam: boolean;
   tiendaNombre?: string | null;
 };
 
@@ -58,16 +60,16 @@ type SidebarNavProps = {
 };
 
 function NavLinks({
-  isAdmin,
+  canManageTeam,
   collapsed,
   onNavigate,
 }: {
-  isAdmin: boolean;
+  canManageTeam: boolean;
   collapsed: boolean;
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
-  const items = navItems.filter((item) => !item.adminOnly || isAdmin);
+  const items = navItems.filter((item) => !item.teamOnly || canManageTeam);
 
   return (
     <nav className="flex flex-1 flex-col gap-0.5 px-2" aria-label="Principal">
@@ -148,17 +150,28 @@ function SidebarBody({
       </div>
 
       {!collapsed && user.tiendaNombre ? (
-        <div className="flex items-center gap-2 px-3 py-3 text-body-sm text-muted-foreground">
-          <Store className="size-4 shrink-0" strokeWidth={1.75} />
-          <span className="truncate font-medium text-foreground">
-            {user.tiendaNombre}
-          </span>
+        <div className="space-y-1 px-3 py-3">
+          <div className="flex items-center gap-2 text-body-sm text-muted-foreground">
+            <Store className="size-4 shrink-0" strokeWidth={1.75} />
+            <span className="truncate font-medium text-foreground">
+              {user.tiendaNombre}
+            </span>
+          </div>
+          {user.isAdmin ? (
+            <Link
+              href="/seleccionar-tienda"
+              onClick={onNavigate}
+              className="block truncate pl-6 text-caption text-primary hover:underline"
+            >
+              Cambiar tienda
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
       <div className="flex-1 overflow-y-auto py-2">
         <NavLinks
-          isAdmin={user.isAdmin}
+          canManageTeam={user.canManageTeam}
           collapsed={collapsed}
           onNavigate={onNavigate}
         />

@@ -25,9 +25,13 @@ function dayStartEnd(ymd: string): { start: Date; end: Date } {
 export default async function ReportsPage() {
   const { supabase, user, perfil, tienda } = await getPerfilTienda();
   if (!supabase || !user) redirect("/login");
-  if (!perfil?.id_tienda) redirect("/registro/completar");
-  if (perfil.rol !== "admin") redirect("/dashboard");
+  if (!perfil?.id_organizacion) redirect("/registro/completar");
+  if (!perfil.id_tienda) redirect("/seleccionar-tienda");
+  if (perfil.rol !== "admin" && perfil.rol !== "manager") {
+    redirect("/dashboard");
+  }
 
+  const idOrganizacion = perfil.id_organizacion;
   const idTienda = perfil.id_tienda;
   const plan = getPlan(parsePlanId(tienda?.plan));
   const minDate = getReportesMinDate(plan.reportesAnios);
@@ -56,7 +60,8 @@ export default async function ReportsPage() {
     supabase
       .from("perfiles")
       .select("id, nombre, apellido")
-      .eq("id_tienda", idTienda),
+      .eq("id_organizacion", idOrganizacion)
+      .or(`id_tienda.eq.${idTienda},id_tienda.is.null`),
   ]);
 
   const namesByUser: Record<string, string> = {};
@@ -82,6 +87,7 @@ export default async function ReportsPage() {
   return (
     <ReportsView
       idTienda={idTienda}
+      idOrganizacion={idOrganizacion}
       initialVentas={initialVentas}
       initialNamesByUser={namesByUser}
       initialLoadError={ventasRes.error?.message ?? null}

@@ -375,6 +375,7 @@ function CartPanel({
 }
 
 export function NewSaleView({
+  idTienda,
   categorias: initialCategorias,
   productos: initialProductos,
   mediosPago: initialMedios,
@@ -407,6 +408,7 @@ export function NewSaleView({
   );
   const [loadError] = useState<string | null>(initialLoadError);
   const [registering, setRegistering] = useState(false);
+  const registeringRef = useRef(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [saleState, setSaleState] = useState<"idle" | "loading" | "success">(
     "idle",
@@ -554,6 +556,8 @@ export function NewSaleView({
   }
 
   async function handleRegistrarVenta() {
+    if (registeringRef.current || saleState !== "idle") return;
+
     setRegisterError(null);
     if (!selectedMedioId || cartLines.length === 0) {
       setRegisterError(
@@ -570,6 +574,7 @@ export function NewSaleView({
       return;
     }
 
+    registeringRef.current = true;
     setRegistering(true);
     setSaleState("loading");
     const payload = cartLines.map((l) => {
@@ -587,9 +592,11 @@ export function NewSaleView({
       p_id_medio_pago: selectedMedioId,
       p_items: payload,
       p_descuento_monto: descuentoMonto,
+      p_id_tienda: idTienda,
     });
 
     if (error) {
+      registeringRef.current = false;
       setRegistering(false);
       setSaleState("idle");
       setRegisterError(error.message);
