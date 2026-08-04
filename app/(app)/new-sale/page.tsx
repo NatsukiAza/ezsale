@@ -14,22 +14,24 @@ function searchFold(s: string) {
 export default async function NewSalePage() {
   const { supabase, user, perfil } = await getPerfilTienda();
   if (!supabase || !user) redirect("/login");
-  if (!perfil?.id_tienda) redirect("/registro/completar");
+  if (!perfil?.id_organizacion) redirect("/registro/completar");
+  if (!perfil.id_tienda) redirect("/seleccionar-tienda");
 
+  const idOrganizacion = perfil.id_organizacion;
   const idTienda = perfil.id_tienda;
 
   const [catsRes, mediosRes, productosRes, ventasRes] = await Promise.all([
     supabase
       .from("categorias")
       .select("id, nombre")
-      .eq("id_tienda", idTienda)
+      .eq("id_organizacion", idOrganizacion)
       .is("eliminado_en", null)
       .order("nombre"),
     supabase.from("medios_pago").select("id, nombre").order("nombre"),
     supabase
       .from("productos")
       .select("id, id_categoria, nombre, precio_actual")
-      .eq("id_tienda", idTienda)
+      .eq("id_organizacion", idOrganizacion)
       .is("eliminado_en", null),
     supabase.rpc("unidades_vendidas_por_tienda", { p_id_tienda: idTienda }),
   ]);

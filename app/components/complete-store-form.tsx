@@ -55,7 +55,7 @@ export function CompleteStoreForm() {
       return;
     }
 
-    router.push("/dashboard");
+    router.push("/seleccionar-tienda");
     router.refresh();
   }
 
@@ -65,9 +65,9 @@ export function CompleteStoreForm() {
       className="mx-auto w-full max-w-[26.25rem] space-y-5 rounded-lg border border-border bg-card p-6"
     >
       <div className="space-y-1">
-        <h1 className="text-h1">Completar datos de tu tienda</h1>
+        <h1 className="text-h1">Completar datos de tu negocio</h1>
         <p className="text-body-sm text-muted-foreground">
-          Tu cuenta ya existe; creá la tienda y tu perfil de administrador.
+          Tu cuenta ya existe; creá la organización, la primera tienda y tu perfil de administrador.
         </p>
       </div>
 

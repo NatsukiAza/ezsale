@@ -102,8 +102,8 @@ export async function POST(request: Request) {
 
   const userId = authData.user.id;
 
-  const { data: tiendaRow, error: tiendaErr } = await admin
-    .from("tiendas")
+  const { data: orgRow, error: orgErr } = await admin
+    .from("organizaciones")
     .insert({
       nombre: nombreTienda,
       ...(plan ? { plan } : {}),
@@ -113,7 +113,25 @@ export async function POST(request: Request) {
     .select("id")
     .single();
 
+  if (orgErr || !orgRow) {
+    await admin.auth.admin.deleteUser(userId);
+    return NextResponse.json(
+      { ok: false, error: orgErr?.message ?? "No se pudo crear la organización." },
+      { status: 400 },
+    );
+  }
+
+  const { data: tiendaRow, error: tiendaErr } = await admin
+    .from("tiendas")
+    .insert({
+      id_organizacion: orgRow.id,
+      nombre: nombreTienda,
+    })
+    .select("id")
+    .single();
+
   if (tiendaErr || !tiendaRow) {
+    await admin.from("organizaciones").delete().eq("id", orgRow.id);
     await admin.auth.admin.deleteUser(userId);
     return NextResponse.json(
       { ok: false, error: tiendaErr?.message ?? "No se pudo crear la tienda." },
@@ -123,7 +141,8 @@ export async function POST(request: Request) {
 
   const { error: perfilErr } = await admin.from("perfiles").insert({
     id: userId,
-    id_tienda: tiendaRow.id,
+    id_organizacion: orgRow.id,
+    id_tienda: null,
     nombre,
     apellido: apellido || "",
     rol: "admin",
@@ -132,6 +151,7 @@ export async function POST(request: Request) {
 
   if (perfilErr) {
     await admin.from("tiendas").delete().eq("id", tiendaRow.id);
+    await admin.from("organizaciones").delete().eq("id", orgRow.id);
     await admin.auth.admin.deleteUser(userId);
     return NextResponse.json(
       { ok: false, error: perfilErr.message ?? "No se pudo crear el perfil." },

@@ -2,13 +2,22 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 type StatusBadgeProps = {
-  status: "admin" | "normal" | "success" | "warning" | "danger" | "info" | "neutral";
+  status:
+    | "admin"
+    | "manager"
+    | "normal"
+    | "success"
+    | "warning"
+    | "danger"
+    | "info"
+    | "neutral";
   children: React.ReactNode;
   className?: string;
 };
 
 const variantMap = {
   admin: "brand",
+  manager: "info",
   normal: "outline",
   success: "success",
   warning: "warning",

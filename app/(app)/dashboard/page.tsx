@@ -12,7 +12,11 @@ function utcYmd(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
+async function loadDashboardData(
+  supabase: SupabaseClient,
+  idTienda: string,
+  idOrganizacion: string,
+) {
   const now = new Date();
   const y = now.getUTCFullYear();
   const mo = now.getUTCMonth();
@@ -38,7 +42,8 @@ async function loadDashboardData(supabase: SupabaseClient, idTienda: string) {
     supabase
       .from("perfiles")
       .select("id, nombre, apellido")
-      .eq("id_tienda", idTienda),
+      .eq("id_organizacion", idOrganizacion)
+      .or(`id_tienda.eq.${idTienda},id_tienda.is.null`),
   ]);
 
   if (semRes.error) {
@@ -174,12 +179,14 @@ export default async function DashboardPage() {
   const { supabase, user, perfil, tiendaNombre } = await getPerfilTienda();
 
   if (!supabase || !user) redirect("/login");
-  if (!perfil?.id_tienda) redirect("/registro/completar");
+  if (!perfil?.id_organizacion) redirect("/registro/completar");
+  if (!perfil.id_tienda) redirect("/seleccionar-tienda");
 
   const idTienda = perfil.id_tienda;
+  const idOrganizacion = perfil.id_organizacion;
   const esAdmin = perfil.rol === "admin";
 
-  const data = await loadDashboardData(supabase, idTienda);
+  const data = await loadDashboardData(supabase, idTienda, idOrganizacion);
 
   const firstName =
     (perfil.nombre as string | null | undefined)?.trim() || null;

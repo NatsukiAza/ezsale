@@ -68,7 +68,7 @@ export function RegisterForm({
     if (perfilLogin?.debe_cambiar_password === true) {
       router.push("/auth/cambiar-password");
     } else {
-      router.push("/dashboard");
+      router.push("/seleccionar-tienda");
     }
     router.refresh();
     return true;
@@ -178,7 +178,7 @@ export function RegisterForm({
         return;
       }
 
-      router.push("/dashboard");
+      router.push("/seleccionar-tienda");
       router.refresh();
       return;
     }

@@ -30,7 +30,6 @@ import {
 } from "@/components/app/data-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -48,12 +47,30 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+type RolMiembro = "admin" | "manager" | "normal";
 
 type MiembroRow = {
   id: string;
   nombre: string;
   apellido: string;
-  rol: "admin" | "normal";
+  rol: RolMiembro;
+  id_tienda: string | null;
+};
+
+type TiendaOption = { id: string; nombre: string };
+
+const ROL_LABEL: Record<RolMiembro, string> = {
+  admin: "Admin",
+  manager: "Manager",
+  normal: "Normal",
 };
 
 function searchFold(s: string) {
@@ -70,29 +87,42 @@ function iniciales(nombre: string, apellido: string) {
   return s || "?";
 }
 
+function normalizeRol(r: string | undefined | null): RolMiembro {
+  if (r === "admin" || r === "manager") return r;
+  return "normal";
+}
+
 export function TeamView({
   idTienda,
+  idOrganizacion,
+  viewerRol,
+  tiendas,
   currentUserId,
   initialMiembros,
   initialLoadError = null,
 }: {
   idTienda: string;
+  idOrganizacion: string;
+  viewerRol: "admin" | "manager";
+  tiendas: TiendaOption[];
   currentUserId: string;
   initialMiembros: MiembroRow[];
   initialLoadError?: string | null;
 }) {
+  const isOrgAdmin = viewerRol === "admin";
+  const canManage = viewerRol === "admin" || viewerRol === "manager";
+
   const [miembros, setMiembros] = useState<MiembroRow[]>(initialMiembros);
   const [loadError, setLoadError] = useState<string | null>(initialLoadError);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
-  const soyAdmin = true;
 
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteNombre, setInviteNombre] = useState("");
   const [inviteApellido, setInviteApellido] = useState("");
   const [invitePassword, setInvitePassword] = useState("");
-  const [inviteEsAdmin, setInviteEsAdmin] = useState(false);
+  const [inviteRol, setInviteRol] = useState<RolMiembro>("normal");
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteLoading, setInviteLoading] = useState(false);
 
@@ -101,7 +131,8 @@ export function TeamView({
   const [editEmail, setEditEmail] = useState("");
   const [editNombre, setEditNombre] = useState("");
   const [editApellido, setEditApellido] = useState("");
-  const [editEsAdmin, setEditEsAdmin] = useState(false);
+  const [editRol, setEditRol] = useState<RolMiembro>("normal");
+  const [editIdTienda, setEditIdTienda] = useState<string>(idTienda);
   const [editError, setEditError] = useState<string | null>(null);
   const [editFetchFailed, setEditFetchFailed] = useState(false);
   const [editLoading, setEditLoading] = useState(false);
@@ -116,6 +147,20 @@ export function TeamView({
   const [deleteTarget, setDeleteTarget] = useState<MiembroRow | null>(null);
   const [deleting, setDeleting] = useState(false);
 
+  const inviteRolOptions: RolMiembro[] = isOrgAdmin
+    ? ["admin", "manager", "normal"]
+    : ["manager", "normal"];
+
+  const editRolOptions: RolMiembro[] = isOrgAdmin
+    ? ["admin", "manager", "normal"]
+    : ["manager", "normal"];
+
+  const tiendaNombreById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of tiendas) map.set(t.id, t.nombre);
+    return map;
+  }, [tiendas]);
+
   const load = useCallback(async () => {
     const supabase = createClient();
     if (!supabase) {
@@ -125,12 +170,19 @@ export function TeamView({
     }
 
     setLoading(true);
-    const tid = idTienda;
-    const { data: rows, error: re } = await supabase
+    let q = supabase
       .from("perfiles")
-      .select("id, nombre, apellido, rol")
-      .eq("id_tienda", tid)
+      .select("id, nombre, apellido, rol, id_tienda")
+      .eq("id_organizacion", idOrganizacion)
       .is("eliminado_en", null);
+
+    q = isOrgAdmin
+      ? q.or(
+          `id_tienda.eq.${idTienda},and(id_tienda.is.null,rol.eq.admin)`,
+        )
+      : q.eq("id_tienda", idTienda);
+
+    const { data: rows, error: re } = await q;
 
     if (re) {
       setLoadError(re.message);
@@ -139,7 +191,10 @@ export function TeamView({
       return;
     }
 
-    const list = (rows ?? []) as MiembroRow[];
+    const list = ((rows ?? []) as MiembroRow[]).map((m) => ({
+      ...m,
+      rol: normalizeRol(m.rol),
+    }));
     const me = list.find((m) => m.id === currentUserId);
     const rest = list
       .filter((m) => m.id !== currentUserId)
@@ -147,7 +202,7 @@ export function TeamView({
     setMiembros(me ? [me, ...rest] : rest);
     setLoadError(null);
     setLoading(false);
-  }, [idTienda, currentUserId]);
+  }, [idOrganizacion, idTienda, isOrgAdmin, currentUserId]);
 
   const totalAdmins = useMemo(
     () => miembros.filter((m) => m.rol === "admin").length,
@@ -177,7 +232,7 @@ export function TeamView({
     setInviteNombre("");
     setInviteApellido("");
     setInvitePassword("");
-    setInviteEsAdmin(false);
+    setInviteRol("normal");
   }
 
   function closeEditModal() {
@@ -187,7 +242,8 @@ export function TeamView({
     setEditEmail("");
     setEditNombre("");
     setEditApellido("");
-    setEditEsAdmin(false);
+    setEditRol("normal");
+    setEditIdTienda(idTienda);
     setEditError(null);
     setEditFetchFailed(false);
     setEditLoadingInitial(false);
@@ -205,7 +261,8 @@ export function TeamView({
       email?: string;
       nombre?: string;
       apellido?: string;
-      esAdmin?: boolean;
+      rol?: string;
+      id_tienda?: string | null;
       error?: string;
     };
     setEditLoadingInitial(false);
@@ -217,7 +274,12 @@ export function TeamView({
     setEditEmail(json.email ?? "");
     setEditNombre(json.nombre ?? "");
     setEditApellido(json.apellido ?? "");
-    setEditEsAdmin(json.esAdmin === true);
+    setEditRol(normalizeRol(json.rol));
+    setEditIdTienda(
+      typeof json.id_tienda === "string" && json.id_tienda
+        ? json.id_tienda
+        : idTienda,
+    );
   }
 
   async function handleEditSubmit(e: React.FormEvent) {
@@ -226,16 +288,33 @@ export function TeamView({
       setEditError("El nombre es obligatorio.");
       return;
     }
+    if (!isOrgAdmin && editRol === "admin") {
+      setEditError("Un manager no puede asignar el rol de administrador.");
+      return;
+    }
+    if (editRol !== "admin" && isOrgAdmin && !editIdTienda) {
+      setEditError("Indicá la tienda del usuario.");
+      return;
+    }
     setEditError(null);
     setEditLoading(true);
+    const body: {
+      nombre: string;
+      apellido: string;
+      rol: RolMiembro;
+      id_tienda?: string | null;
+    } = {
+      nombre: editNombre.trim(),
+      apellido: editApellido.trim(),
+      rol: editRol,
+    };
+    if (isOrgAdmin) {
+      body.id_tienda = editRol === "admin" ? null : editIdTienda;
+    }
     const res = await fetch(`/api/team/members/${editMemberId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        nombre: editNombre.trim(),
-        apellido: editApellido.trim(),
-        esAdmin: editEsAdmin,
-      }),
+      body: JSON.stringify(body),
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
     setEditLoading(false);
@@ -328,6 +407,10 @@ export function TeamView({
       setInviteError("La contraseña debe tener al menos 6 caracteres.");
       return;
     }
+    if (!isOrgAdmin && inviteRol === "admin") {
+      setInviteError("Un manager no puede crear administradores.");
+      return;
+    }
 
     setInviteLoading(true);
     const res = await fetch("/api/team/members", {
@@ -338,7 +421,7 @@ export function TeamView({
         password: invitePassword,
         nombre: inviteNombre.trim(),
         apellido: inviteApellido.trim(),
-        esAdmin: inviteEsAdmin,
+        rol: inviteRol,
       }),
     });
     const json = (await res.json()) as { ok?: boolean; error?: string };
@@ -354,13 +437,19 @@ export function TeamView({
     void load();
   }
 
+  function puedeGestionarMiembro(m: MiembroRow): boolean {
+    if (!canManage) return false;
+    if (isOrgAdmin) return true;
+    return m.rol !== "admin";
+  }
+
   return (
     <div className="pb-10">
       <PageHeader
         title="Equipo"
         description="Gestioná los usuarios con acceso a tu tienda."
         actions={
-          soyAdmin ? (
+          canManage ? (
             <Button onClick={() => setInviteModalOpen(true)}>
               <UserPlus />
               Invitar
@@ -415,6 +504,9 @@ export function TeamView({
               <DataTableRow className="hover:bg-transparent">
                 <DataTableHead>Nombre</DataTableHead>
                 <DataTableHead>Rol</DataTableHead>
+                {isOrgAdmin && tiendas.length > 0 ? (
+                  <DataTableHead>Tienda</DataTableHead>
+                ) : null}
                 <DataTableHead className="w-12 text-right">
                   <span className="sr-only">Acciones</span>
                 </DataTableHead>
@@ -427,8 +519,15 @@ export function TeamView({
                 const esAdminMiembro = m.rol === "admin";
                 const esYo = m.id === currentUserId;
                 const esUnicoAdmin = esAdminMiembro && totalAdmins === 1;
-                const puedeEliminar = soyAdmin && !esUnicoAdmin;
-                const showMenu = soyAdmin || esYo;
+                const puedeEditar = puedeGestionarMiembro(m);
+                const puedeEliminar =
+                  puedeEditar && !esUnicoAdmin && !esYo;
+                const showMenu = puedeEditar || esYo;
+                const tiendaLabel = esAdminMiembro
+                  ? "Todas"
+                  : m.id_tienda
+                    ? (tiendaNombreById.get(m.id_tienda) ?? "—")
+                    : "—";
                 return (
                   <DataTableRow key={m.id}>
                     <DataTableCell>
@@ -449,10 +548,23 @@ export function TeamView({
                       </div>
                     </DataTableCell>
                     <DataTableCell>
-                      <StatusBadge status={esAdminMiembro ? "admin" : "normal"}>
-                        {esAdminMiembro ? "Admin" : "Normal"}
+                      <StatusBadge
+                        status={
+                          m.rol === "admin"
+                            ? "admin"
+                            : m.rol === "manager"
+                              ? "manager"
+                              : "normal"
+                        }
+                      >
+                        {ROL_LABEL[m.rol]}
                       </StatusBadge>
                     </DataTableCell>
+                    {isOrgAdmin && tiendas.length > 0 ? (
+                      <DataTableCell className="text-muted-foreground">
+                        {tiendaLabel}
+                      </DataTableCell>
+                    ) : null}
                     <DataTableCell className="text-right">
                       {showMenu ? (
                         <DropdownMenu>
@@ -475,7 +587,7 @@ export function TeamView({
                                 Cambiar contraseña
                               </DropdownMenuItem>
                             ) : null}
-                            {soyAdmin ? (
+                            {puedeEditar ? (
                               <DropdownMenuItem
                                 onClick={() => void openEditModal(m.id)}
                               >
@@ -483,7 +595,7 @@ export function TeamView({
                                 Editar
                               </DropdownMenuItem>
                             ) : null}
-                            {soyAdmin && puedeEliminar ? (
+                            {puedeEliminar ? (
                               <DropdownMenuItem
                                 variant="destructive"
                                 onClick={() => setDeleteTarget(m)}
@@ -565,16 +677,23 @@ export function TeamView({
               />
             </FormField>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5">
-              <Checkbox
-                checked={inviteEsAdmin}
-                onCheckedChange={(c) => setInviteEsAdmin(c === true)}
-                className="mt-0.5"
-              />
-              <span className="text-sm">
-                También es administrador de la tienda
-              </span>
-            </label>
+            <FormField id="invite-rol" label="Rol *">
+              <Select
+                value={inviteRol}
+                onValueChange={(v) => setInviteRol(normalizeRol(v))}
+              >
+                <SelectTrigger id="invite-rol" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {inviteRolOptions.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROL_LABEL[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </FormField>
 
             {inviteError ? (
               <Alert variant="destructive">
@@ -655,23 +774,50 @@ export function TeamView({
                 </FormField>
               </div>
 
-              <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5">
-                <Checkbox
-                  checked={editEsAdmin}
-                  disabled={totalAdmins === 1 && editEsAdmin}
-                  onCheckedChange={(c) => setEditEsAdmin(c === true)}
-                  className="mt-0.5"
-                />
-                <span className="text-sm">
-                  Administrador de la tienda
-                  {totalAdmins === 1 && editEsAdmin ? (
-                    <span className="mt-1 block text-caption text-muted-foreground">
-                      No podés quitar el único administrador mientras sea el
-                      único.
-                    </span>
-                  ) : null}
-                </span>
-              </label>
+              <FormField id="edit-rol" label="Rol *">
+                <Select
+                  value={editRol}
+                  onValueChange={(v) => setEditRol(normalizeRol(v))}
+                  disabled={totalAdmins === 1 && editRol === "admin"}
+                >
+                  <SelectTrigger id="edit-rol" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {editRolOptions.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {ROL_LABEL[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {totalAdmins === 1 && editRol === "admin" ? (
+                  <p className="mt-1 text-caption text-muted-foreground">
+                    No podés quitar el único administrador mientras sea el
+                    único.
+                  </p>
+                ) : null}
+              </FormField>
+
+              {isOrgAdmin && editRol !== "admin" && tiendas.length > 0 ? (
+                <FormField id="edit-tienda" label="Tienda *">
+                  <Select
+                    value={editIdTienda}
+                    onValueChange={setEditIdTienda}
+                  >
+                    <SelectTrigger id="edit-tienda" className="w-full">
+                      <SelectValue placeholder="Elegí una tienda" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {tiendas.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FormField>
+              ) : null}
 
               {editError ? (
                 <Alert variant="destructive">

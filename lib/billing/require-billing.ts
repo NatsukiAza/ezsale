@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
 
 /**
- * Helper reutilizable en route handlers: 402 si la tienda está bloqueada por cobro.
+ * Helper reutilizable en route handlers: 402 si la organización está bloqueada por cobro.
  */
 export async function requireBillingOr402() {
   const supabase = await createClient();
@@ -28,10 +28,10 @@ export async function requireBillingOr402() {
   }
   const { data: perfil } = await supabase
     .from("perfiles")
-    .select("id_tienda, eliminado_en")
+    .select("id_organizacion, eliminado_en")
     .eq("id", user.id)
     .maybeSingle();
-  if (!perfil?.id_tienda || perfil.eliminado_en) {
+  if (!perfil?.id_organizacion || perfil.eliminado_en) {
     return {
       error: NextResponse.json(
         { ok: false, error: "Perfil inválido." },
@@ -39,25 +39,29 @@ export async function requireBillingOr402() {
       ),
     };
   }
-  const { data: tienda } = await supabase
-    .from("tiendas")
+  const { data: org } = await supabase
+    .from("organizaciones")
     .select("created_at, cobro_exento, pagado_hasta, plan")
-    .eq("id", perfil.id_tienda)
+    .eq("id", perfil.id_organizacion)
     .maybeSingle();
-  if (!tienda) {
+  if (!org) {
     return {
       error: NextResponse.json(
-        { ok: false, error: "Tienda no encontrada." },
+        { ok: false, error: "Organización no encontrada." },
         { status: 404 },
       ),
     };
   }
   const blocked = assertBillingAllowed({
-    created_at: tienda.created_at as string,
-    cobro_exento: Boolean(tienda.cobro_exento),
-    pagado_hasta: (tienda.pagado_hasta as string | null) ?? null,
-    plan: (tienda.plan as string | null) ?? null,
+    created_at: org.created_at as string,
+    cobro_exento: Boolean(org.cobro_exento),
+    pagado_hasta: (org.pagado_hasta as string | null) ?? null,
+    plan: (org.plan as string | null) ?? null,
   });
   if (blocked) return { error: blocked };
-  return { supabase, user, idTienda: perfil.id_tienda as string };
+  return {
+    supabase,
+    user,
+    idOrganizacion: perfil.id_organizacion as string,
+  };
 }

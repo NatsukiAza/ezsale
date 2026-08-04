@@ -12,6 +12,7 @@ import {
   getMercadoPagoAccessToken,
   getMercadoPagoBackUrl,
 } from "@/lib/billing/mercadopago";
+import { computeExcesoTiendasHasta } from "@/lib/stores/exceso-tiendas";
 import { NextResponse } from "next/server";
 
 type Body = {
@@ -51,19 +52,16 @@ export async function POST(request: Request) {
     );
   }
 
-  // En TEST, MP exige que el pagador sea usuario de prueba.
-  // El panel solo muestra "Usuario", pero la cuenta tiene un email interno
-  // (suele ser test_user_…@testuser.com). Podés forzar ese email acá.
   const payerEmail =
     process.env.MP_TEST_PAYER_EMAIL?.trim() || user.email;
 
   const { data: miPerfil } = await supabase
     .from("perfiles")
-    .select("id_tienda, rol, eliminado_en")
+    .select("id_organizacion, rol, eliminado_en")
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!miPerfil?.id_tienda || miPerfil.eliminado_en) {
+  if (!miPerfil?.id_organizacion || miPerfil.eliminado_en) {
     return NextResponse.json(
       { ok: false, error: "No se encontró tu perfil." },
       { status: 400 },
@@ -87,28 +85,30 @@ export async function POST(request: Request) {
     );
   }
 
-  const idTienda = miPerfil.id_tienda as string;
-  const { data: tienda } = await admin
-    .from("tiendas")
-    .select("id, nombre, plan, cobro_exento, mp_preapproval_id, mp_payer_email")
-    .eq("id", idTienda)
+  const idOrg = miPerfil.id_organizacion as string;
+  const { data: org } = await admin
+    .from("organizaciones")
+    .select(
+      "id, nombre, plan, cobro_exento, mp_preapproval_id, mp_payer_email, exceso_tiendas_hasta",
+    )
+    .eq("id", idOrg)
     .maybeSingle();
 
-  if (!tienda) {
+  if (!org) {
     return NextResponse.json(
-      { ok: false, error: "Tienda no encontrada." },
+      { ok: false, error: "Organización no encontrada." },
       { status: 404 },
     );
   }
 
-  if (tienda.cobro_exento) {
+  if (org.cobro_exento) {
     return NextResponse.json(
-      { ok: false, error: "Esta tienda está exenta de cobro." },
+      { ok: false, error: "Esta organización está exenta de cobro." },
       { status: 400 },
     );
   }
 
-  const requested = parsePlanId(body.plan) ?? parsePlanId(tienda.plan);
+  const requested = parsePlanId(body.plan) ?? parsePlanId(org.plan);
   if (!requested || !CHECKOUT_PLANS.includes(requested)) {
     return NextResponse.json(
       {
@@ -136,13 +136,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const existingId = tienda.mp_preapproval_id as string | null;
-  const samePlan = parsePlanId(tienda.plan) === requested;
+  const existingId = org.mp_preapproval_id as string | null;
+  const samePlan = parsePlanId(org.plan) === requested;
   const samePayer =
-    (tienda.mp_payer_email as string | null)?.toLowerCase() ===
+    (org.mp_payer_email as string | null)?.toLowerCase() ===
     payerEmail.toLowerCase();
 
-  // No reutilizar un link viejo creado con otro email (ej. Gmail real en TEST).
   if (existingId && samePlan && samePayer) {
     try {
       const existing = await preApproval.get({ id: existingId });
@@ -161,17 +160,14 @@ export async function POST(request: Request) {
     }
   }
 
-  // Suscripción con pago pendiente (sin plan asociado): MP devuelve init_point
-  // para que el usuario complete el medio de pago. Con preapproval_plan_id
-  // exige card_token_id (checkout con tarjeta tokenizada).
   const backUrl = getMercadoPagoBackUrl();
-  const tiendaNombre = String(tienda.nombre ?? "tienda");
+  const orgNombre = String(org.nombre ?? "negocio");
 
   try {
     const created = await preApproval.create({
       body: {
-        reason: `EZSale ${planDef.name} - ${tiendaNombre}`,
-        external_reference: idTienda,
+        reason: `EZSale ${planDef.name} - ${orgNombre}`,
+        external_reference: idOrg,
         payer_email: payerEmail,
         back_url: backUrl,
         status: "pending",
@@ -191,18 +187,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const { error: updErr } = await admin
+    const { count: activas } = await admin
       .from("tiendas")
+      .select("id", { count: "exact", head: true })
+      .eq("id_organizacion", idOrg)
+      .is("eliminado_en", null);
+
+    const exceso = computeExcesoTiendasHasta({
+      plan: requested,
+      tiendasActivas: activas ?? 0,
+      excesoActual: (org.exceso_tiendas_hasta as string | null) ?? null,
+    });
+
+    const { error: updErr } = await admin
+      .from("organizaciones")
       .update({
         plan: requested as PlanId,
         mp_preapproval_id: created.id,
         mp_payer_email: payerEmail,
         estado_mp: created.status ?? "pending",
+        exceso_tiendas_hasta: exceso,
       })
-      .eq("id", idTienda);
+      .eq("id", idOrg);
 
     if (updErr) {
-      console.error("[billing] update tienda after checkout", updErr);
+      console.error("[billing] update org after checkout", updErr);
     }
 
     return NextResponse.json({
