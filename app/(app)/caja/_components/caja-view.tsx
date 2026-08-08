@@ -5,9 +5,9 @@ import {
   useCallback,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -25,6 +25,7 @@ import { PrivacyToggle } from "@/components/app/privacy";
 import { EmptyState } from "@/components/app/empty-state";
 import { FormField } from "@/components/app/form-field";
 import { ConfirmDialog } from "@/components/app/confirm-dialog";
+import { revalidateCaja } from "@/lib/caja/actions";
 import {
   DataTable,
   DataTableBody,
@@ -124,6 +125,7 @@ export function CajaView({
   initialGastos,
   initialLoadError = null,
 }: CajaViewProps) {
+  const router = useRouter();
   const [dayDate, setDayDate] = useState(initialDayYmd);
   const [ventas, setVentas] = useState(initialVentas);
   const [gastos, setGastos] = useState(initialGastos);
@@ -139,8 +141,6 @@ export function CajaView({
 
   const [deleting, setDeleting] = useState<CajaGastoRow | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-
-  const skipFirstLoad = useRef(true);
 
   const dayLabel = useMemo(() => {
     const d = new Date(dayDate + "T12:00:00");
@@ -236,12 +236,15 @@ export function CajaView({
   );
 
   useEffect(() => {
-    if (skipFirstLoad.current) {
-      skipFirstLoad.current = false;
-      if (dayDate === initialDayYmd) return;
-    }
+    // Siempre refetch al montar / cambiar día: el SSR puede venir de router cache stale.
     void loadDay(dayDate);
-  }, [dayDate, initialDayYmd, loadDay]);
+  }, [dayDate, loadDay]);
+
+  async function afterGastoMutation() {
+    await revalidateCaja();
+    router.refresh();
+    await loadDay(dayDate);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -315,7 +318,7 @@ export function CajaView({
 
     setFormOpen(false);
     setEditing(null);
-    await loadDay(dayDate);
+    await afterGastoMutation();
   }
 
   async function confirmDelete() {
@@ -339,7 +342,7 @@ export function CajaView({
       return;
     }
     setDeleting(null);
-    await loadDay(dayDate);
+    await afterGastoMutation();
   }
 
   return (
@@ -451,11 +454,16 @@ export function CajaView({
                     <DataTableHead>Hora</DataTableHead>
                     <DataTableHead>Medio</DataTableHead>
                     <DataTableHead className="text-right">Monto</DataTableHead>
+                    {canManageGastos ? (
+                      <DataTableHead className="w-24 text-right">
+                        <span className="sr-only">Acciones</span>
+                      </DataTableHead>
+                    ) : null}
                   </DataTableRow>
                 </DataTableHeader>
                 <DataTableBody>
                   {ventas.map((v) => (
-                    <DataTableRow key={v.id}>
+                    <DataTableRow key={v.id} className="h-12">
                       <DataTableCell className="tabular-nums">
                         {formatHora(v.fecha_venta)}
                       </DataTableCell>
@@ -463,6 +471,9 @@ export function CajaView({
                       <DataTableCell className="text-right">
                         <Money value={Number(v.monto_total)} display />
                       </DataTableCell>
+                      {canManageGastos ? (
+                        <DataTableCell className="w-24" aria-hidden />
+                      ) : null}
                     </DataTableRow>
                   ))}
                 </DataTableBody>
@@ -500,7 +511,7 @@ export function CajaView({
                 </DataTableHeader>
                 <DataTableBody>
                   {gastos.map((g) => (
-                    <DataTableRow key={g.id}>
+                    <DataTableRow key={g.id} className="h-12">
                       <DataTableCell className="tabular-nums">
                         {formatHora(g.fecha_gasto)}
                       </DataTableCell>
@@ -511,8 +522,8 @@ export function CajaView({
                         <Money value={Number(g.monto)} display />
                       </DataTableCell>
                       {canManageGastos ? (
-                        <DataTableCell className="text-right">
-                          <div className="inline-flex items-center gap-0.5">
+                        <DataTableCell className="w-24 text-right">
+                          <div className="inline-flex h-8 items-center justify-end gap-0.5">
                             <Button
                               type="button"
                               variant="ghost"
