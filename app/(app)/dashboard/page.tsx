@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 export const dynamic = "force-dynamic";
 
 const DIA_CORTO_ES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"] as const;
+const TOP_PRODUCTOS_DIAS = 90;
 
 function utcYmd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -25,29 +26,45 @@ async function loadDashboardData(
   const todayStart = new Date(Date.UTC(y, mo, d, 0, 0, 0));
   const todayEnd = new Date(Date.UTC(y, mo, d + 1, 0, 0, 0));
   const weekStart = new Date(Date.UTC(y, mo, d - 6, 0, 0, 0));
-  const weekEnd = todayEnd;
+  const topDesde = new Date(Date.UTC(y, mo, d - (TOP_PRODUCTOS_DIAS - 1), 0, 0, 0));
 
-  const [semRes, bestRes, perfilesRes] = await Promise.all([
-    supabase
-      .from("ventas")
-      .select("id, id_usuario, monto_total, descuento_monto, fecha_venta")
-      .eq("id_tienda", idTienda)
-      .gte("fecha_venta", weekStart.toISOString())
-      .lt("fecha_venta", weekEnd.toISOString())
-      .order("fecha_venta", { ascending: false }),
-    supabase.rpc("top_productos_por_tienda", {
-      p_id_tienda: idTienda,
-      p_limit: 3,
-    }),
-    supabase
-      .from("perfiles")
-      .select("id, nombre, apellido")
-      .eq("id_organizacion", idOrganizacion)
-      .or(`id_tienda.eq.${idTienda},id_tienda.is.null`),
-  ]);
+  const [hoyRes, diariasRes, bestRes, perfilesRes, gastosHoyRes] =
+    await Promise.all([
+      supabase
+        .from("ventas")
+        .select("id, id_usuario, monto_total, descuento_monto, fecha_venta")
+        .eq("id_tienda", idTienda)
+        .gte("fecha_venta", todayStart.toISOString())
+        .lt("fecha_venta", todayEnd.toISOString())
+        .order("fecha_venta", { ascending: false }),
+      supabase.rpc("ventas_diarias_por_tienda", {
+        p_id_tienda: idTienda,
+        p_desde: weekStart.toISOString(),
+        p_hasta: todayEnd.toISOString(),
+      }),
+      supabase.rpc("top_productos_por_tienda", {
+        p_id_tienda: idTienda,
+        p_limit: 3,
+        p_desde: topDesde.toISOString(),
+      }),
+      supabase
+        .from("perfiles")
+        .select("id, nombre, apellido")
+        .eq("id_organizacion", idOrganizacion)
+        .or(`id_tienda.eq.${idTienda},id_tienda.is.null`),
+      supabase
+        .from("gastos")
+        .select("monto")
+        .eq("id_tienda", idTienda)
+        .gte("fecha_gasto", todayStart.toISOString())
+        .lt("fecha_gasto", todayEnd.toISOString()),
+    ]);
 
-  if (semRes.error) {
-    return { error: semRes.error.message } as const;
+  if (hoyRes.error) {
+    return { error: hoyRes.error.message } as const;
+  }
+  if (diariasRes.error) {
+    return { error: diariasRes.error.message } as const;
   }
   if (bestRes.error) {
     return { error: bestRes.error.message } as const;
@@ -55,16 +72,18 @@ async function loadDashboardData(
   if (perfilesRes.error) {
     return { error: perfilesRes.error.message } as const;
   }
+  if (gastosHoyRes.error) {
+    return { error: gastosHoyRes.error.message } as const;
+  }
 
-  const rowsSemana = semRes.data ?? [];
-  const todayStartMs = todayStart.getTime();
-  const todayEndMs = todayEnd.getTime();
-  const rowsHoyAll = rowsSemana.filter((v) => {
-    const t = new Date(v.fecha_venta as string).getTime();
-    return t >= todayStartMs && t < todayEndMs;
-  });
+  const rowsHoyAll = hoyRes.data ?? [];
   const totalHoy = rowsHoyAll.reduce((s, v) => s + Number(v.monto_total), 0);
   const cantidadVentasHoy = rowsHoyAll.length;
+  const totalGastosHoy = (gastosHoyRes.data ?? []).reduce(
+    (s, g) => s + Number(g.monto),
+    0,
+  );
+  const enCajaHoy = totalHoy - totalGastosHoy;
 
   const rowsHoyLista = rowsHoyAll.slice(0, 5);
   const vidsLista = rowsHoyLista.map((v) => v.id as string);
@@ -132,9 +151,10 @@ async function loadDashboardData(
   });
 
   const montoPorDia = new Map<string, number>();
-  for (const row of semRes.data ?? []) {
-    const key = utcYmd(new Date(row.fecha_venta as string));
-    montoPorDia.set(key, (montoPorDia.get(key) ?? 0) + Number(row.monto_total));
+  for (const row of diariasRes.data ?? []) {
+    const dia = row.dia as string;
+    const key = typeof dia === "string" ? dia.slice(0, 10) : utcYmd(new Date(dia));
+    montoPorDia.set(key, Number(row.monto));
   }
 
   const diasSemana: {
@@ -167,6 +187,7 @@ async function loadDashboardData(
 
   return {
     totalHoy,
+    enCajaHoy,
     cantidadVentasHoy,
     ventasHoy,
     diasSemana,
@@ -209,6 +230,7 @@ export default async function DashboardPage() {
       firstName={firstName}
       esAdmin={esAdmin}
       totalHoy={data.totalHoy}
+      enCajaHoy={data.enCajaHoy}
       cantidadVentasHoy={data.cantidadVentasHoy}
       ventasHoy={data.ventasHoy}
       diasSemana={data.diasSemana}

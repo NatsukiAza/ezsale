@@ -5,6 +5,8 @@ import { formatPercent } from "@/lib/format";
 type MetricTileProps = {
   label: string;
   value: ReactNode;
+  /** Línea secundaria bajo el valor (p. ej. En caja). */
+  secondary?: ReactNode;
   change?: number | null;
   changeLabel?: string;
   hint?: string;
@@ -20,6 +22,7 @@ type MetricTileProps = {
 export function MetricTile({
   label,
   value,
+  secondary,
   change,
   changeLabel,
   hint,
@@ -56,6 +59,11 @@ export function MetricTile({
       >
         {value}
       </p>
+      {secondary ? (
+        <div className="text-body-sm text-muted-foreground tabular-nums">
+          {secondary}
+        </div>
+      ) : null}
       {hasChange || hint || footer ? (
         <div className="mt-auto flex items-end justify-between gap-3 pt-1">
           <div className="min-w-0">

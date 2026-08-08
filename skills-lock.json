@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "customer-research": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/customer-research/SKILL.md",
+      "computedHash": "fe1206af3520f39f23cd44c727e3981f92d5e965b4370f9543ca502c5e52523b"
+    },
+    "marketing-council": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/marketing-council/SKILL.md",
+      "computedHash": "b98fba2987dedb894f2b7e04ba3d668d630ae7534ddcb5f78f198a9c79d64f81"
+    },
+    "marketing-plan": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/marketing-plan/SKILL.md",
+      "computedHash": "c1541262368129976b3bd8f3706587d717f6f9db5e532af54c5d5c119f85d8c7"
+    },
+    "product-marketing": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "skillPath": "skills/product-marketing/SKILL.md",
+      "computedHash": "709145cb3cd36bab03d5dfe4ecd41af3120ed5a9d293c7ba9d7d9648c39f34b9"
+    }
+  }
+}

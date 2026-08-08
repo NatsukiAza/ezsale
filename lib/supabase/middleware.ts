@@ -53,6 +53,7 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/new-sale") ||
     path.startsWith("/products") ||
     path.startsWith("/reports") ||
+    path.startsWith("/caja") ||
     path.startsWith("/team");
   const isProtected =
     isAppShell ||
@@ -116,25 +117,12 @@ export async function updateSession(request: NextRequest) {
     const forceBillingRefresh = isCuenta || isSelector;
 
     if (cached && !forceBillingRefresh) {
+      // Soft-delete se chequea en RSC (getPerfilTienda); el gate evita
+      // un round-trip extra a perfiles en cada navegación (TTL ~10 min).
       debeCambiarPassword = cached.debeCambiarPassword;
       rol = cached.rol;
       billingBlocked = cached.billingBlocked;
       tieneOrg = true;
-
-      const { data: perfilSoft } = await supabase
-        .from("perfiles")
-        .select("eliminado_en")
-        .eq("id", user.id)
-        .maybeSingle();
-      if (perfilSoft?.eliminado_en) {
-        await supabase.auth.signOut();
-        supabaseResponse.cookies.set(GATE_COOKIE, "", {
-          path: "/",
-          maxAge: 0,
-          sameSite: "lax",
-        });
-        return redirectWithCookies(request, "/login", supabaseResponse);
-      }
     } else {
       const { data: perfil } = await supabase
         .from("perfiles")

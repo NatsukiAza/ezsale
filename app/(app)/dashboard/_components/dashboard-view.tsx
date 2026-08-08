@@ -61,6 +61,7 @@ type DashboardViewProps = {
   firstName?: string | null;
   esAdmin?: boolean;
   totalHoy: number;
+  enCajaHoy: number;
   cantidadVentasHoy: number;
   ventasHoy: VentaHoyItem[];
   diasSemana: DiaSemanaItem[];
@@ -88,6 +89,7 @@ export function DashboardView({
   firstName,
   esAdmin = true,
   totalHoy,
+  enCajaHoy,
   cantidadVentasHoy,
   ventasHoy,
   diasSemana,
@@ -125,6 +127,14 @@ export function DashboardView({
             label="Total de hoy"
             staggerMs={0}
             value={<Money value={totalHoy} display animate />}
+            secondary={
+              <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+                <span>En caja</span>
+                <span className="text-[1.25rem] font-medium leading-7 text-foreground">
+                  <Money value={enCajaHoy} display animate />
+                </span>
+              </span>
+            }
             hint={
               cantidadVentasHoy === 0
                 ? "Todavía no vendiste nada hoy — ¿arrancamos?"
@@ -164,11 +174,16 @@ export function DashboardView({
           <div className="space-y-3 lg:col-span-2">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-h2">Ventas de la semana</h2>
-              {esAdmin ? (
+              <div className="flex items-center gap-1">
                 <Button asChild variant="ghost" size="sm">
-                  <Link href="/reports">Ver reportes</Link>
+                  <Link href="/caja">Ver caja</Link>
                 </Button>
-              ) : null}
+                {esAdmin ? (
+                  <Button asChild variant="ghost" size="sm">
+                    <Link href="/reports">Ver reportes</Link>
+                  </Button>
+                ) : null}
+              </div>
             </div>
             <div className="rounded-lg border bg-card p-4">
               <ChartContainer config={chartConfig} className="h-[260px] w-full">

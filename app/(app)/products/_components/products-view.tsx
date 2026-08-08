@@ -18,6 +18,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { revalidateCatalog } from "@/lib/catalog/actions";
 import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
 import { Money } from "@/components/app/money";
@@ -409,6 +410,7 @@ export function ProductsView({
     exitPriceEditMode();
     setLoadingList(true);
     await loadData();
+    void revalidateCatalog(idOrganizacion);
   }
 
   function selectTab(tab: string) {
@@ -512,6 +514,7 @@ export function ProductsView({
       setDeleteTarget(null);
       setLoadingList(true);
       await loadData();
+      void revalidateCatalog(idOrganizacion);
       return;
     }
 
@@ -557,6 +560,7 @@ export function ProductsView({
     }
     setLoadingList(true);
     await loadData();
+    void revalidateCatalog(idOrganizacion);
   }
 
   async function handleSubmitProducto(e: React.FormEvent) {
@@ -609,6 +613,7 @@ export function ProductsView({
     setEditingProductoId(null);
     setLoadingList(true);
     await loadData();
+    void revalidateCatalog(idOrganizacion);
   }
 
   async function handleSubmitCategoria(e: React.FormEvent) {
@@ -656,6 +661,7 @@ export function ProductsView({
     setEditingCategoriaId(null);
     setLoadingList(true);
     await loadData();
+    void revalidateCatalog(idOrganizacion);
   }
 
   const nuevoLabel =

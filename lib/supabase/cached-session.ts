@@ -137,14 +137,27 @@ export const getPerfilTienda = cache(
     const idTiendaAsignada = (perfil.id_tienda as string | null) ?? null;
     const rol = perfil.rol as string;
 
-    const { data: orgRow } = await supabase
-      .from("organizaciones")
-      .select(
-        "nombre, created_at, cobro_exento, pagado_hasta, plan, estado_mp, mp_preapproval_id, nota_cobro, exceso_tiendas_hasta",
-      )
-      .eq("id", idOrganizacion)
-      .maybeSingle();
+    const cookieStore = await cookies();
+    const cookieId = cookieStore.get(ACTIVE_STORE_COOKIE)?.value;
 
+    const [orgRes, activa] = await Promise.all([
+      supabase
+        .from("organizaciones")
+        .select(
+          "nombre, created_at, cobro_exento, pagado_hasta, plan, estado_mp, mp_preapproval_id, nota_cobro, exceso_tiendas_hasta",
+        )
+        .eq("id", idOrganizacion)
+        .maybeSingle(),
+      resolveTiendaActiva({
+        supabase,
+        idOrganizacion,
+        rol,
+        idTiendaAsignada,
+        cookieId,
+      }),
+    ]);
+
+    const orgRow = orgRes.data;
     const organizacion: TiendaBillingRow | null = orgRow
       ? {
           nombre: (orgRow.nombre as string | null) ?? null,
@@ -169,17 +182,6 @@ export const getPerfilTienda = cache(
           plan: organizacion.plan,
         })
       : null;
-
-    const cookieStore = await cookies();
-    const cookieId = cookieStore.get(ACTIVE_STORE_COOKIE)?.value;
-
-    const activa = await resolveTiendaActiva({
-      supabase,
-      idOrganizacion,
-      rol,
-      idTiendaAsignada,
-      cookieId,
-    });
 
     if (!activa) {
       return {
