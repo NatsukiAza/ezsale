@@ -1,4 +1,5 @@
 import { NewSaleView } from "@/app/(app)/new-sale/_components/new-sale-view";
+import { getCachedCatalog } from "@/lib/catalog/cached-catalog";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
 import { redirect } from "next/navigation";
 
@@ -20,27 +21,14 @@ export default async function NewSalePage() {
   const idOrganizacion = perfil.id_organizacion;
   const idTienda = perfil.id_tienda;
 
-  const [catsRes, mediosRes, productosRes, ventasRes] = await Promise.all([
-    supabase
-      .from("categorias")
-      .select("id, nombre")
-      .eq("id_organizacion", idOrganizacion)
-      .is("eliminado_en", null)
-      .order("nombre"),
+  const [catalog, mediosRes, ventasRes] = await Promise.all([
+    getCachedCatalog(idOrganizacion),
     supabase.from("medios_pago").select("id, nombre").order("nombre"),
-    supabase
-      .from("productos")
-      .select("id, id_categoria, nombre, precio_actual")
-      .eq("id_organizacion", idOrganizacion)
-      .is("eliminado_en", null),
     supabase.rpc("unidades_vendidas_por_tienda", { p_id_tienda: idTienda }),
   ]);
 
   const loadError =
-    catsRes.error?.message ??
-    mediosRes.error?.message ??
-    productosRes.error?.message ??
-    null;
+    catalog.error ?? mediosRes.error?.message ?? null;
 
   const ventasMap = new Map<string, number>();
   if (!ventasRes.error && ventasRes.data) {
@@ -52,13 +40,13 @@ export default async function NewSalePage() {
     }
   }
 
-  const productos = (productosRes.data ?? [])
+  const productos = catalog.productos
     .map((row) => ({
-      id: row.id as string,
-      id_categoria: row.id_categoria as string,
-      nombre: row.nombre as string,
-      precio_actual: Number(row.precio_actual),
-      nombre_busqueda: searchFold(row.nombre as string),
+      id: row.id,
+      id_categoria: row.id_categoria,
+      nombre: row.nombre,
+      precio_actual: row.precio_actual,
+      nombre_busqueda: searchFold(row.nombre),
     }))
     .sort((a, b) => {
       const ua = ventasMap.get(a.id) ?? 0;
@@ -70,7 +58,10 @@ export default async function NewSalePage() {
   return (
     <NewSaleView
       idTienda={idTienda}
-      categorias={(catsRes.data ?? []) as { id: string; nombre: string }[]}
+      categorias={catalog.categorias.map((c) => ({
+        id: c.id,
+        nombre: c.nombre,
+      }))}
       mediosPago={(mediosRes.data ?? []) as { id: string; nombre: string }[]}
       productos={productos}
       loadError={loadError}

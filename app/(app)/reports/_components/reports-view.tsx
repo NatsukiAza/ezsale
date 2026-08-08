@@ -59,6 +59,14 @@ import { cn } from "@/lib/utils";
 
 type Period = "day" | "month" | "year";
 
+const PAGE_SIZE = 50;
+
+export type ReportsSummary = {
+  totalMonto: number;
+  totalCount: number;
+  mediosBreakdown: { label: string; amount: number; pct: number }[];
+};
+
 type DetalleVentaRow = {
   id_product: string;
   cantidad: number;
@@ -198,6 +206,8 @@ export function ReportsView({
   initialVentas,
   initialNamesByUser,
   initialLoadError = null,
+  initialSummary = null,
+  initialHasMore = false,
   /** Fecha mínima inclusive (YYYY-MM-DD) según historial del plan. null = sin tope. */
   reportesMinYmd = null,
 }: {
@@ -210,10 +220,12 @@ export function ReportsView({
   initialVentas: VentaRow[];
   initialNamesByUser: Record<string, string>;
   initialLoadError?: string | null;
+  initialSummary?: ReportsSummary | null;
+  initialHasMore?: boolean;
   reportesMinYmd?: string | null;
 }) {
   const isOrgScope = scope === "org";
-  const [period, setPeriod] = useState<Period>("day");
+  const [period, setPeriod] = useState<Period>("month");
   const [dayDate, setDayDate] = useState(todayLocalYmd);
   const [monthAnchor, setMonthAnchor] = useState(() => {
     const n = new Date();
@@ -225,7 +237,12 @@ export function ReportsView({
   const [namesByUser, setNamesByUser] =
     useState<Record<string, string>>(initialNamesByUser);
   const [loadError, setLoadError] = useState<string | null>(initialLoadError);
+  const [summary, setSummary] = useState<ReportsSummary | null>(
+    initialSummary,
+  );
+  const [hasMore, setHasMore] = useState(initialHasMore);
   const [loading, setLoading] = useState(isOrgScope);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [loadingDetalleId, setLoadingDetalleId] = useState<string | null>(null);
 
@@ -277,45 +294,91 @@ export function ReportsView({
     return range;
   }, [period, dayDate, monthAnchor, yearAnchor, reportesMinYmd]);
 
-  const totalFacturado = useMemo(
-    () => ventas.reduce((s, v) => s + Number(v.monto_total), 0),
-    [ventas],
-  );
+  const totalFacturado = summary?.totalMonto ?? 0;
+  const ventasCount = summary?.totalCount ?? ventas.length;
+  const ticketPromedio = ventasCount > 0 ? totalFacturado / ventasCount : 0;
 
-  const ticketPromedio = ventas.length > 0 ? totalFacturado / ventas.length : 0;
+  const mediosBreakdown = summary?.mediosBreakdown ?? [];
 
-  const mediosBreakdown = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const v of ventas) {
-      const label = medioNombre(v);
-      map.set(label, (map.get(label) ?? 0) + Number(v.monto_total));
+  function mapVentaRows(
+    rows: Array<Record<string, unknown>>,
+    nombresTienda: Record<string, string>,
+  ): VentaRow[] {
+    return rows.map((row) => {
+      const tid = (row.id_tienda as string | null) ?? null;
+      return {
+        id: row.id as string,
+        fecha_venta: row.fecha_venta as string,
+        monto_total: row.monto_total as number | string,
+        descuento_monto: (row.descuento_monto as number | string | null) ?? 0,
+        id_usuario: row.id_usuario as string,
+        id_medio_pago: row.id_medio_pago as string,
+        id_tienda: tid,
+        tienda_nombre: tid ? (nombresTienda[tid] ?? null) : null,
+        medios_pago: row.medios_pago as VentaRow["medios_pago"],
+        detalle_ventas: null,
+      };
+    });
+  }
+
+  function buildSummaryFromRows(
+    rows: Array<{
+      monto_total: number | string;
+      medios_pago: VentaRow["medios_pago"];
+    }>,
+  ): ReportsSummary {
+    let totalMonto = 0;
+    const mediosMap = new Map<string, number>();
+    for (const row of rows) {
+      const monto = Number(row.monto_total);
+      totalMonto += monto;
+      const label = (() => {
+        const m = row.medios_pago;
+        if (!m) return "—";
+        if (Array.isArray(m)) return m[0]?.nombre ?? "—";
+        return m.nombre;
+      })();
+      mediosMap.set(label, (mediosMap.get(label) ?? 0) + monto);
     }
-    const entries = [...map.entries()].sort((a, b) => b[1] - a[1]);
+    const entries = [...mediosMap.entries()].sort((a, b) => b[1] - a[1]);
     const total = entries.reduce((s, [, n]) => s + n, 0) || 1;
-    return entries.map(([label, amount]) => ({
-      label,
-      amount,
-      pct: Math.round((amount / total) * 1000) / 10,
-    }));
-  }, [ventas]);
+    return {
+      totalMonto,
+      totalCount: rows.length,
+      mediosBreakdown: entries.map(([label, amount]) => ({
+        label,
+        amount,
+        pct: Math.round((amount / total) * 1000) / 10,
+      })),
+    };
+  }
 
-  const loadVentas = useCallback(async () => {
-    try {
-      const supabase = createClient();
-      if (!supabase) {
-        setLoadError("Supabase no está configurado.");
-        return;
-      }
+  const ventasLenRef = useRef(ventas.length);
+  ventasLenRef.current = ventas.length;
+  const summaryCountRef = useRef(summary?.totalCount ?? 0);
+  summaryCountRef.current = summary?.totalCount ?? 0;
 
-      if (!isOrgScope && !idTienda) {
-        setLoadError("Falta la tienda activa.");
-        return;
-      }
+  const loadVentas = useCallback(
+    async (opts?: { append?: boolean }) => {
+      const append = opts?.append === true;
+      try {
+        const supabase = createClient();
+        if (!supabase) {
+          setLoadError("Supabase no está configurado.");
+          return;
+        }
 
-      let ventasQuery = supabase
-        .from("ventas")
-        .select(
-          `
+        if (!isOrgScope && !idTienda) {
+          setLoadError("Falta la tienda activa.");
+          return;
+        }
+
+        const offset = append ? ventasLenRef.current : 0;
+
+        let listQuery = supabase
+          .from("ventas")
+          .select(
+            `
         id,
         fecha_venta,
         monto_total,
@@ -325,100 +388,147 @@ export function ReportsView({
         id_tienda,
         medios_pago ( nombre )
       `,
-        )
-        .gte("fecha_venta", start.toISOString())
-        .lt("fecha_venta", end.toISOString())
-        .order("fecha_venta", { ascending: false });
+          )
+          .gte("fecha_venta", start.toISOString())
+          .lt("fecha_venta", end.toISOString())
+          .order("fecha_venta", { ascending: false })
+          .range(offset, offset + PAGE_SIZE - 1);
 
-      if (!isOrgScope && idTienda) {
-        ventasQuery = ventasQuery.eq("id_tienda", idTienda);
-      }
-
-      const perfilesQuery = isOrgScope
-        ? supabase
-            .from("perfiles")
-            .select("id, nombre, apellido")
-            .eq("id_organizacion", idOrganizacion)
-        : supabase
-            .from("perfiles")
-            .select("id, nombre, apellido")
-            .eq("id_organizacion", idOrganizacion)
-            .or(`id_tienda.eq.${idTienda},id_tienda.is.null`);
-
-      const [ventasRes, perfilesRes] = await Promise.all([
-        ventasQuery,
-        perfilesQuery,
-      ]);
-
-      if (ventasRes.error) {
-        setLoadError(ventasRes.error.message);
-        setVentas([]);
-        return;
-      }
-
-      const tiendaIds = [
-        ...new Set(
-          (ventasRes.data ?? [])
-            .map((r) => r.id_tienda as string | null)
-            .filter((id): id is string => Boolean(id)),
-        ),
-      ];
-      const nombresTienda: Record<string, string> = {};
-      if (isOrgScope && tiendaIds.length > 0) {
-        const { data: tiendasRows } = await supabase
-          .from("tiendas")
-          .select("id, nombre")
-          .in("id", tiendaIds);
-        for (const t of tiendasRows ?? []) {
-          nombresTienda[t.id as string] = (t.nombre as string) || "Tienda";
+        if (!isOrgScope && idTienda) {
+          listQuery = listQuery.eq("id_tienda", idTienda);
         }
+
+        const perfilesQuery = isOrgScope
+          ? supabase
+              .from("perfiles")
+              .select("id, nombre, apellido")
+              .eq("id_organizacion", idOrganizacion)
+          : supabase
+              .from("perfiles")
+              .select("id, nombre, apellido")
+              .eq("id_organizacion", idOrganizacion)
+              .or(`id_tienda.eq.${idTienda},id_tienda.is.null`);
+
+        const summaryQuery = append
+          ? null
+          : (() => {
+              let q = supabase
+                .from("ventas")
+                .select("monto_total, id_medio_pago, medios_pago ( nombre )")
+                .gte("fecha_venta", start.toISOString())
+                .lt("fecha_venta", end.toISOString());
+              if (!isOrgScope && idTienda) {
+                q = q.eq("id_tienda", idTienda);
+              }
+              return q;
+            })();
+
+        const [ventasRes, perfilesRes, summaryRes] = await Promise.all([
+          listQuery,
+          append ? Promise.resolve({ data: null, error: null }) : perfilesQuery,
+          summaryQuery ?? Promise.resolve({ data: null, error: null }),
+        ]);
+
+        if (ventasRes.error) {
+          setLoadError(ventasRes.error.message);
+          if (!append) {
+            setVentas([]);
+            setSummary(null);
+            setHasMore(false);
+          }
+          return;
+        }
+
+        if (!append && summaryRes.error) {
+          setLoadError(summaryRes.error.message);
+          setVentas([]);
+          setSummary(null);
+          setHasMore(false);
+          return;
+        }
+
+        const tiendaIds = [
+          ...new Set(
+            (ventasRes.data ?? [])
+              .map((r) => r.id_tienda as string | null)
+              .filter((id): id is string => Boolean(id)),
+          ),
+        ];
+        const nombresTienda: Record<string, string> = {};
+        if (isOrgScope && tiendaIds.length > 0) {
+          const { data: tiendasRows } = await supabase
+            .from("tiendas")
+            .select("id, nombre")
+            .in("id", tiendaIds);
+          for (const t of tiendasRows ?? []) {
+            nombresTienda[t.id as string] = (t.nombre as string) || "Tienda";
+          }
+        }
+
+        const list = mapVentaRows(
+          (ventasRes.data ?? []) as Array<Record<string, unknown>>,
+          nombresTienda,
+        );
+
+        if (append) {
+          const nextLen = ventasLenRef.current + list.length;
+          setVentas((prev) => [...prev, ...list]);
+          setHasMore(
+            list.length === PAGE_SIZE &&
+              summaryCountRef.current > nextLen,
+          );
+        } else {
+          const nextSummary = buildSummaryFromRows(
+            (summaryRes.data ?? []) as Array<{
+              monto_total: number | string;
+              medios_pago: VentaRow["medios_pago"];
+            }>,
+          );
+          setSummary(nextSummary);
+          setVentas(list);
+          setHasMore(nextSummary.totalCount > list.length);
+
+          const nm: Record<string, string> = {};
+          for (const p of perfilesRes.data ?? []) {
+            const full = `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim();
+            nm[p.id as string] = full || "Usuario";
+          }
+          setNamesByUser(nm);
+          setExpanded(null);
+        }
+
+        setLoadError(null);
+      } catch (e) {
+        const msg =
+          e instanceof Error ? e.message : "Error al cargar reportes.";
+        setLoadError(msg);
+        if (!append) {
+          setVentas([]);
+          setSummary(null);
+          setHasMore(false);
+        }
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
       }
+    },
+    [idTienda, idOrganizacion, isOrgScope, start, end],
+  );
 
-      const list = (ventasRes.data ?? []).map((row) => {
-        const tid = (row.id_tienda as string | null) ?? null;
-        return {
-          id: row.id as string,
-          fecha_venta: row.fecha_venta as string,
-          monto_total: row.monto_total as number | string,
-          descuento_monto: (row.descuento_monto as number | string | null) ?? 0,
-          id_usuario: row.id_usuario as string,
-          id_medio_pago: row.id_medio_pago as string,
-          id_tienda: tid,
-          tienda_nombre: tid ? (nombresTienda[tid] ?? null) : null,
-          medios_pago: row.medios_pago as VentaRow["medios_pago"],
-          detalle_ventas: null,
-        };
-      });
-      setVentas(list);
-
-      const nm: Record<string, string> = {};
-      for (const p of perfilesRes.data ?? []) {
-        const full = `${p.nombre ?? ""} ${p.apellido ?? ""}`.trim();
-        nm[p.id as string] = full || "Usuario";
-      }
-      setNamesByUser(nm);
-      setLoadError(null);
-      setExpanded(null);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "Error al cargar reportes.";
-      setLoadError(msg);
-      setVentas([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [idTienda, idOrganizacion, isOrgScope, start, end]);
-
-  const isInitialDayRange = useMemo(() => {
-    const today = dayStartEnd(todayLocalYmd());
+  const isInitialMonthRange = useMemo(() => {
+    const n = new Date();
+    const cur = monthStartEnd(n.getFullYear(), n.getMonth() + 1);
     return (
-      period === "day" &&
-      start.getTime() === today.start.getTime() &&
-      end.getTime() === today.end.getTime()
+      period === "month" &&
+      start.getTime() === cur.start.getTime() &&
+      end.getTime() === cur.end.getTime()
     );
   }, [period, start, end]);
 
   const skipFirstFetch = useRef(
-    !isOrgScope && isInitialDayRange && initialVentas.length > 0,
+    !isOrgScope &&
+      isInitialMonthRange &&
+      (initialVentas.length > 0 || initialSummary != null),
   );
 
   useEffect(() => {
@@ -429,6 +539,12 @@ export function ReportsView({
     setLoading(true);
     void loadVentas();
   }, [loadVentas]);
+
+  async function loadMore() {
+    if (loadingMore || !hasMore) return;
+    setLoadingMore(true);
+    await loadVentas({ append: true });
+  }
 
   async function ensureDetalle(ventaId: string): Promise<DetalleVentaRow[]> {
     const existing = ventas.find((v) => v.id === ventaId);
@@ -890,11 +1006,11 @@ export function ReportsView({
           />
           <MetricTile
             label="Ventas"
-            value={<span className="tabular-nums">{ventas.length}</span>}
+            value={<span className="tabular-nums">{ventasCount}</span>}
             hint={
-              ventas.length === 1
+              ventasCount === 1
                 ? "1 venta en el período"
-                : `${ventas.length} ventas en el período`
+                : `${ventasCount} ventas en el período`
             }
           />
           <MetricTile
@@ -1108,6 +1224,25 @@ export function ReportsView({
               </DataTableBody>
             </DataTable>
           )}
+          {!loading && hasMore ? (
+            <div className="flex justify-center pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="animate-spin" />
+                    Cargando…
+                  </>
+                ) : (
+                  "Cargar más"
+                )}
+              </Button>
+            </div>
+          ) : null}
         </section>
       </div>
 

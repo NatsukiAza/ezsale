@@ -14,6 +14,7 @@ import {
   Plus,
   Store,
   Users,
+  Wallet,
 } from "lucide-react";
 import { useState } from "react";
 import { clearGateCookieClient } from "@/lib/supabase/gate-cookie";
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/new-sale", label: "Nueva venta", icon: Plus, teamOnly: false },
   { href: "/dashboard", label: "Panel", icon: LayoutDashboard, teamOnly: false },
   { href: "/products", label: "Productos", icon: Package, teamOnly: false },
+  { href: "/caja", label: "Caja", icon: Wallet, teamOnly: false },
   { href: "/reports", label: "Reportes", icon: ChartColumn, teamOnly: true },
   { href: "/team", label: "Equipo", icon: Users, teamOnly: true },
   { href: "/cuenta", label: "Cuenta", icon: CreditCard, teamOnly: false },
