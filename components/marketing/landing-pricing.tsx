@@ -116,7 +116,7 @@ export function LandingPricing() {
           <p className="mt-4 text-body text-muted-foreground md:text-base md:leading-relaxed">
             Suscripción mensual en pesos. Probá 30 días y, en tu primera
             suscripción, los {INTRO_DISCOUNT_MONTHS} primeros meses van al 50%.
-            Si el cobro falla, tenés un mes de gracia.
+            Si el cobro falla, tenés 15 días de gracia.
           </p>
         </Reveal>
 

@@ -59,7 +59,7 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
 export const DEFAULT_PLAN_FOR_LIMITS: PlanId = "cadena";
 
 export const TRIAL_DAYS = 30;
-export const GRACE_DAYS = 30;
+export const GRACE_DAYS = 15;
 
 /** Primera suscripción: factor sobre el precio de lista. */
 export const INTRO_DISCOUNT_FACTOR = 0.5;

@@ -40,7 +40,7 @@ Cada tienda es un entorno aislado: los datos de una tienda no son accesibles por
 
 **Actualización de precios.** Debido al contexto macroeconómico, los precios de los planes están sujetos a revisión periódica. Cualquier modificación en el costo de la suscripción será notificada al Usuario con al menos treinta (30) días de anticipación. La tarifa vigente del plan Sucursales es de $100.000 (cien mil pesos argentinos) mensuales.
 
-**Mora y suspensión.** Vencida la fecha de cobertura de la suscripción sin pago acreditado, el Usuario dispone de un período de gracia de treinta (30) días corridos. Durante ese lapso podrá recibir avisos de regularización y/o acceso con restricciones según la configuración vigente de la plataforma. Transcurrida la gracia sin pago, el acceso quedará bloqueado hasta acreditar la suscripción. El servicio se reactivará una vez acreditado el pago adeudado.
+**Mora y suspensión.** Vencida la fecha de cobertura de la suscripción sin pago acreditado, el Usuario dispone de un período de gracia de quince (15) días corridos. Durante ese lapso podrá recibir avisos de regularización y/o acceso con restricciones según la configuración vigente de la plataforma. Transcurrida la gracia sin pago, el acceso quedará bloqueado hasta acreditar la suscripción. El servicio se reactivará una vez acreditado el pago adeudado.
 
 **Cuentas exentas.** El Proveedor podrá otorgar acceso sin cobro (cortesía). En ese caso no aplican trial ni bloqueo por mora mientras la exención esté vigente.
 
