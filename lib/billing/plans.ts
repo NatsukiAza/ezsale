@@ -29,14 +29,14 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
     maxUsuarios: 30,
     maxTiendas: 5,
     reportesAnios: 4,
-    precioArs: 150_000,
+    precioArs: 100_000,
     mpPlanIdEnv: "MP_PLAN_SUCURSALES",
   },
   cadena: {
     id: "cadena",
     name: "Cadena",
-    maxUsuarios: 100,
-    maxTiendas: 20,
+    maxUsuarios: 60,
+    maxTiendas: 10,
     reportesAnios: 5,
     precioArs: 199_999,
     mpPlanIdEnv: "MP_PLAN_CADENA",
@@ -54,12 +54,17 @@ export const PLANS: Record<PlanId, PlanDefinition> = {
 
 /**
  * Plan efectivo para límites cuando `plan` es null (cortesía / caridad).
- * Usa Cadena: hasta 20 tiendas y 100 usuarios.
+ * Usa Cadena: hasta 10 tiendas y 60 usuarios.
  */
 export const DEFAULT_PLAN_FOR_LIMITS: PlanId = "cadena";
 
 export const TRIAL_DAYS = 30;
 export const GRACE_DAYS = 30;
+
+/** Primera suscripción: factor sobre el precio de lista. */
+export const INTRO_DISCOUNT_FACTOR = 0.5;
+/** Ciclos mensuales al precio introductorio. */
+export const INTRO_DISCOUNT_MONTHS = 3;
 
 /** Días para eliminar tiendas extra tras bajar de plan. */
 export const EXCESO_TIENDAS_DIAS = 15;
@@ -98,6 +103,27 @@ export function formatPlanPrice(plan: PlanId): string {
   const precio = PLANS[plan].precioArs;
   if (precio == null) return "A medida";
   return `${formatArs(precio)}/mes`;
+}
+
+export function precioIntroArs(precioListaArs: number): number {
+  return Math.round(precioListaArs * INTRO_DISCOUNT_FACTOR);
+}
+
+/** Primera suscripción = la org nunca tuvo un cobro acreditado. */
+export function isIntroEligible(
+  pagadoHasta: string | Date | null | undefined,
+): boolean {
+  return pagadoHasta == null;
+}
+
+export function formatIntroPlanPrice(plan: PlanId): string {
+  const precio = PLANS[plan].precioArs;
+  if (precio == null) return "A medida";
+  return `${formatArs(precioIntroArs(precio))}/mes`;
+}
+
+export function introDiscountNote(precioListaArs: number): string {
+  return `50% los primeros ${INTRO_DISCOUNT_MONTHS} meses, después ${formatArs(precioListaArs)}/mes`;
 }
 
 export const CHECKOUT_PLANS: PlanId[] = ["local", "sucursales", "cadena"];

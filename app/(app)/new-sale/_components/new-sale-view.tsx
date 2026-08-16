@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   useDeferredValue,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -28,7 +29,9 @@ import { EmptyState } from "@/components/app/empty-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import {
   Sheet,
   SheetContent,
@@ -37,6 +40,7 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { formatArs } from "@/lib/format";
+import { useStayOnNewSale } from "@/lib/preferences/stay-on-new-sale";
 import { cn } from "@/lib/utils";
 
 type CategoriaRow = { id: string; nombre: string };
@@ -116,6 +120,9 @@ function CartPanel({
   canRegister,
   saleState,
   onRegister,
+  stockWarnings,
+  stayOnNewSale,
+  setStayOnNewSale,
 }: {
   cartLines: CartLine[];
   cartSubtotal: number;
@@ -132,7 +139,11 @@ function CartPanel({
   canRegister: boolean;
   saleState: "idle" | "loading" | "success";
   onRegister: () => void;
+  stockWarnings: { id: string; nombre: string; stock: number; qty: number }[];
+  stayOnNewSale: boolean;
+  setStayOnNewSale: (value: boolean) => void;
 }) {
+  const staySwitchId = useId();
   const isBusy = saleState === "loading" || saleState === "success";
 
   return (
@@ -150,6 +161,24 @@ function CartPanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {stockWarnings.length > 0 ? (
+          <Alert className="mb-3">
+            <AlertDescription>
+              {stockWarnings.length === 1 ? (
+                <>
+                  {stockWarnings[0].nombre}: stock {stockWarnings[0].stock},
+                  estás vendiendo {stockWarnings[0].qty}. Se puede confirmar
+                  igual.
+                </>
+              ) : (
+                <>
+                  Hay {stockWarnings.length} productos por encima del stock.
+                  Se puede confirmar igual.
+                </>
+              )}
+            </AlertDescription>
+          </Alert>
+        ) : null}
         {cartLines.length === 0 ? (
           <p className="py-8 text-center text-body-sm text-muted-foreground">
             Todavía no hay nada en el carrito — tocá un producto para empezar.
@@ -345,6 +374,23 @@ function CartPanel({
           </Alert>
         ) : null}
 
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Label htmlFor={staySwitchId} className="text-sm font-medium">
+              Seguir vendiendo
+            </Label>
+            <p className="mt-0.5 text-caption text-muted-foreground">
+              Después de registrar, quedate en esta pantalla
+            </p>
+          </div>
+          <Switch
+            id={staySwitchId}
+            checked={stayOnNewSale}
+            onCheckedChange={(checked) => setStayOnNewSale(checked === true)}
+            aria-label="Seguir vendiendo"
+          />
+        </div>
+
         <Button
           type="button"
           size="lg"
@@ -379,12 +425,14 @@ export function NewSaleView({
   categorias: initialCategorias,
   productos: initialProductos,
   mediosPago: initialMedios,
+  stockByProductId: initialStock,
   loadError: initialLoadError = null,
 }: {
   idTienda: string;
   categorias: CategoriaRow[];
   productos: ProductoRow[];
   mediosPago: MedioPagoRow[];
+  stockByProductId: Record<string, number> | null;
   loadError?: string | null;
 }) {
   const PRODUCTOS_POR_PAGINA_MOBILE = 5;
@@ -394,6 +442,9 @@ export function NewSaleView({
   const [categorias] = useState<CategoriaRow[]>(initialCategorias);
   const [productos] = useState<ProductoRow[]>(initialProductos);
   const [mediosPago] = useState<MedioPagoRow[]>(initialMedios);
+  const [stockByProductId, setStockByProductId] = useState<
+    Record<string, number> | null
+  >(initialStock);
   const [selectedCategoryId, setSelectedCategoryId] =
     useState<string>(ALL_CATEGORY_ID);
   const [productSearch, setProductSearch] = useState("");
@@ -414,6 +465,7 @@ export function NewSaleView({
     "idle",
   );
   const [cartOpen, setCartOpen] = useState(false);
+  const { stayOnNewSale, setStayOnNewSale } = useStayOnNewSale();
   const [flashProductId, setFlashProductId] = useState<string | null>(null);
   const flashTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const deferredProductSearch = useDeferredValue(productSearch);
@@ -422,6 +474,30 @@ export function NewSaleView({
     () => Object.values(cart).sort((a, b) => a.nombre.localeCompare(b.nombre)),
     [cart],
   );
+
+  const stockMap = useMemo(() => {
+    if (!stockByProductId) return null;
+    return new Map(Object.entries(stockByProductId));
+  }, [stockByProductId]);
+
+  const stockWarnings = useMemo(() => {
+    if (!stockMap) return [];
+    const out: { id: string; nombre: string; stock: number; qty: number }[] =
+      [];
+    for (const line of cartLines) {
+      const stock = stockMap.get(line.id_product);
+      if (stock === undefined) continue;
+      if (line.cantidad > stock) {
+        out.push({
+          id: line.id_product,
+          nombre: line.nombre,
+          stock,
+          qty: line.cantidad,
+        });
+      }
+    }
+    return out;
+  }, [cartLines, stockMap]);
 
   const cartSubtotal = useMemo(
     () => cartLines.reduce((s, l) => s + subtotalLinea(l), 0),
@@ -605,12 +681,35 @@ export function NewSaleView({
 
     setSaleState("success");
     toast.success("Venta registrada");
-    router.refresh();
-    router.prefetch("/dashboard");
+    if (stockByProductId) {
+      setStockByProductId((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev };
+        for (const line of cartLines) {
+          if (line.id_product in next) {
+            next[line.id_product] = next[line.id_product] - line.cantidad;
+          }
+        }
+        return next;
+      });
+    }
+    if (!stayOnNewSale) {
+      router.prefetch("/dashboard");
+    }
     await new Promise((resolve) => setTimeout(resolve, 900));
 
     setCart({});
     setDescuentoMontoRaw("");
+
+    if (stayOnNewSale) {
+      setSaleState("idle");
+      registeringRef.current = false;
+      setRegistering(false);
+      setCartOpen(false);
+      searchRef.current?.focus();
+      return;
+    }
+
     router.push("/dashboard");
   }
 
@@ -633,6 +732,9 @@ export function NewSaleView({
     canRegister: Boolean(canRegister),
     saleState,
     onRegister: () => void handleRegistrarVenta(),
+    stockWarnings,
+    stayOnNewSale,
+    setStayOnNewSale,
   };
 
   return (
@@ -739,13 +841,24 @@ export function NewSaleView({
             ) : (
               <>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                  {productosPaginados.map((prod) => (
+                  {productosPaginados.map((prod) => {
+                    const stock =
+                      stockMap === null
+                        ? undefined
+                        : stockMap.get(prod.id);
+                    const stockLabel =
+                      stockMap === null
+                        ? null
+                        : stock === undefined
+                          ? "—"
+                          : String(stock);
+                    return (
                     <button
                       key={prod.id}
                       type="button"
                       onClick={() => addToCart(prod)}
                       className={cn(
-                        "flex h-11 items-center justify-between gap-3 rounded-md border border-border bg-card px-3 text-left transition-colors duration-100 hover:bg-accent",
+                        "flex min-h-11 items-center justify-between gap-3 rounded-md border border-border bg-card px-3 py-1.5 text-left transition-colors duration-100 hover:bg-accent",
                         flashProductId === prod.id && "product-flash",
                       )}
                       aria-label={`Agregar ${prod.nombre}`}
@@ -753,11 +866,24 @@ export function NewSaleView({
                       <span className="min-w-0 truncate text-sm font-medium">
                         {prod.nombre}
                       </span>
-                      <span className="shrink-0 font-mono text-body-sm tabular-nums text-muted-foreground">
-                        {formatArs(Number(prod.precio_actual))}
+                      <span className="flex shrink-0 flex-col items-end">
+                        <span className="font-mono text-body-sm tabular-nums text-muted-foreground">
+                          {formatArs(Number(prod.precio_actual))}
+                        </span>
+                        {stockLabel !== null ? (
+                          <span
+                            className={cn(
+                              "font-mono text-caption tabular-nums text-muted-foreground",
+                              stock !== undefined && stock < 0 && "text-destructive",
+                            )}
+                          >
+                            {stockLabel}
+                          </span>
+                        ) : null}
                       </span>
                     </button>
-                  ))}
+                    );
+                  })}
                 </div>
                 {productosFiltrados.length > productosPorPagina ? (
                   <div className="flex items-center justify-center gap-2 pt-2">

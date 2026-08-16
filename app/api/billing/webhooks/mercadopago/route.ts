@@ -5,6 +5,7 @@ import {
   verifyMercadoPagoWebhook,
 } from "@/lib/billing/mercadopago";
 import { parsePlanId } from "@/lib/billing/plans";
+import { maybeBumpIntroPrice } from "@/lib/billing/intro-discount";
 import { sendSubscriptionReceiptEmail } from "@/lib/billing/receipt-email";
 import { NextResponse } from "next/server";
 
@@ -96,6 +97,7 @@ async function syncAuthorizedPayment(
       : null;
   let nextPayment: string | null = null;
   let estadoMp: string | null = null;
+  let chargedQuantity: number | null = null;
 
   if (preApproval) {
     try {
@@ -105,6 +107,11 @@ async function syncAuthorizedPayment(
       }
       nextPayment = sub.next_payment_date ?? null;
       estadoMp = sub.status ?? null;
+      const charged = sub.summarized?.charged_quantity;
+      chargedQuantity =
+        typeof charged === "number" && Number.isFinite(charged)
+          ? charged
+          : null;
     } catch (e) {
       console.error("[billing] get preapproval for invoice", e);
     }
@@ -136,7 +143,9 @@ async function syncAuthorizedPayment(
       estado_mp: estadoMp ?? "authorized",
       mp_preapproval_id: preapprovalId,
     })
-    .select("id, nombre, plan, pagado_hasta");
+    .select(
+      "id, nombre, plan, pagado_hasta, mp_precio_lleno_ars, mp_promo_meses, mp_promo_ciclos_cobrados, mp_preapproval_id",
+    );
 
   if (orgId) {
     orgQuery = orgQuery.eq("id", orgId);
@@ -152,6 +161,23 @@ async function syncAuthorizedPayment(
 
   const org = orgs?.[0];
   if (!org) return;
+
+  if (preApproval) {
+    await maybeBumpIntroPrice({
+      admin,
+      preApproval,
+      org: {
+        id: org.id as string,
+        mp_precio_lleno_ars: org.mp_precio_lleno_ars,
+        mp_promo_meses: org.mp_promo_meses,
+        mp_promo_ciclos_cobrados: org.mp_promo_ciclos_cobrados,
+        mp_preapproval_id: org.mp_preapproval_id,
+      },
+      preapprovalId,
+      chargedQuantity,
+      eventId,
+    });
+  }
 
   const { data: ev } = await admin
     .from("mp_webhook_events")

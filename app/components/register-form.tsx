@@ -6,7 +6,9 @@ import {
   CHECKOUT_PLANS,
   PLANS,
   type PlanId,
+  formatIntroPlanPrice,
   formatPlanPrice,
+  introDiscountNote,
 } from "@/lib/billing/plans";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -47,17 +49,16 @@ export function RegisterForm({
   async function signInAfterRegister() {
     const supabase = createClient();
     if (!supabase) return false;
-    const { error: signErr } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    const { data: signData, error: signErr } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
     if (signErr) {
       setError(mapAuthErrorMessage(signErr.message));
       return false;
     }
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = signData.user;
     const { data: perfilLogin } = user
       ? await supabase
           .from("perfiles")
@@ -201,7 +202,8 @@ export function RegisterForm({
         <h1 className="text-h1">Registrar tienda</h1>
         <p className="text-body-sm text-muted-foreground">
           Se crea la tienda y tu usuario queda como administrador. Tenés 30
-          días de prueba.
+          días de prueba. En la primera suscripción, los 3 primeros meses van
+          al 50%.
         </p>
       </div>
 
@@ -234,9 +236,23 @@ export function RegisterForm({
                 )}
               >
                 <span className="font-medium">{p.name}</span>
-                <span className="ml-2 text-muted-foreground">
-                  {formatPlanPrice(id)}
-                </span>
+                {p.precioArs != null ? (
+                  <span className="ml-2">
+                    <span className="text-muted-foreground line-through">
+                      {formatPlanPrice(id)}
+                    </span>{" "}
+                    <span>{formatIntroPlanPrice(id)}</span>
+                  </span>
+                ) : (
+                  <span className="ml-2 text-muted-foreground">
+                    {formatPlanPrice(id)}
+                  </span>
+                )}
+                {p.precioArs != null ? (
+                  <span className="mt-0.5 block text-caption text-muted-foreground">
+                    {introDiscountNote(p.precioArs)}
+                  </span>
+                ) : null}
               </button>
             );
           })}

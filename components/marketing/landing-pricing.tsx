@@ -4,11 +4,20 @@ import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/marketing/reveal";
 import { formatArs } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  INTRO_DISCOUNT_MONTHS,
+  PLANS,
+  introDiscountNote,
+  precioIntroArs,
+  type PlanId,
+} from "@/lib/billing/plans";
 
 type Plan = {
   name: string;
   price: string | null;
+  priceList?: string;
   priceNote: string;
+  priceCaption?: string;
   description: string;
   featured?: boolean;
   dark?: boolean;
@@ -16,11 +25,24 @@ type Plan = {
   features: string[];
 };
 
-const plans: Plan[] = [
-  {
-    name: "Local",
-    price: formatArs(50000),
+function paidPlan(
+  id: Exclude<PlanId, "empresa">,
+  extras: Omit<Plan, "name" | "price" | "priceList" | "priceNote" | "priceCaption">,
+): Plan {
+  const def = PLANS[id];
+  const list = def.precioArs!;
+  return {
+    name: def.name,
+    price: formatArs(precioIntroArs(list)),
+    priceList: formatArs(list),
     priceNote: "/mes",
+    priceCaption: introDiscountNote(list),
+    ...extras,
+  };
+}
+
+const plans: Plan[] = [
+  paidPlan("local", {
     description: "Un local, lo esencial para empezar a cobrar.",
     cta: { label: "Crear mi tienda", href: "/registro?plan=local" },
     features: [
@@ -29,11 +51,8 @@ const plans: Plan[] = [
       "Reportes hasta 2 años atrás",
       "Ventas, productos y equipo",
     ],
-  },
-  {
-    name: "Sucursales",
-    price: formatArs(150000),
-    priceNote: "/mes",
+  }),
+  paidPlan("sucursales", {
     description: "Para quien ya tiene más de un punto de venta.",
     featured: true,
     cta: { label: "Crear mi tienda", href: "/registro?plan=sucursales" },
@@ -43,20 +62,17 @@ const plans: Plan[] = [
       "Reportes hasta 4 años atrás",
       "Roles admin y normal",
     ],
-  },
-  {
-    name: "Cadena",
-    price: formatArs(199999),
-    priceNote: "/mes",
+  }),
+  paidPlan("cadena", {
     description: "Escala con más locales y más historial.",
     cta: { label: "Crear mi tienda", href: "/registro?plan=cadena" },
     features: [
-      "Hasta 100 usuarios",
-      "Hasta 20 tiendas",
+      "Hasta 60 usuarios",
+      "Hasta 10 tiendas",
       "Reportes hasta 5 años atrás",
       "Soporte prioritario",
     ],
-  },
+  }),
   {
     name: "Empresa",
     price: null,
@@ -73,30 +89,18 @@ const plans: Plan[] = [
   },
 ];
 
-const comparison = [
+const includedInAll = [
   {
-    label: "Usuarios",
-    values: ["5", "30", "100", "Ilimitados"],
+    label: "Stock por tienda",
+    detail: "Recuento y traspasos entre locales. Lo activás cuando lo usás.",
   },
   {
-    label: "Tiendas",
-    values: ["1", "5", "20", "Ilimitadas"],
+    label: "Roles admin y normal",
+    detail: "Los vendedores cobran; los admins ven reportes y el equipo.",
   },
   {
-    label: "Historial de reportes",
-    values: ["2 años", "4 años", "5 años", "De por vida"],
-  },
-  {
-    label: "Roles admin / normal",
-    values: ["Sí", "Sí", "Sí", "Sí"],
-  },
-  {
-    label: "Medios de pago",
-    values: ["Incluidos", "Incluidos", "Incluidos", "Incluidos"],
-  },
-  {
-    label: "Soporte",
-    values: ["Estándar", "Estándar", "Prioritario", "Dedicado"],
+    label: "Catálogo compartido",
+    detail: "Los mismos productos en todas las tiendas de la cuenta.",
   },
 ] as const;
 
@@ -110,8 +114,9 @@ export function LandingPricing() {
         <Reveal className="mx-auto mb-10 max-w-2xl text-center md:mb-14">
           <h2 className="text-section-title">Precios claros, sin sorpresas</h2>
           <p className="mt-4 text-body text-muted-foreground md:text-base md:leading-relaxed">
-            Suscripción mensual en pesos. Probá 30 días y después pagás con
-            Mercado Pago. Si el cobro falla, tenés un mes de gracia.
+            Suscripción mensual en pesos. Probá 30 días y, en tu primera
+            suscripción, los {INTRO_DISCOUNT_MONTHS} primeros meses van al 50%.
+            Si el cobro falla, tenés un mes de gracia.
           </p>
         </Reveal>
 
@@ -141,25 +146,48 @@ export function LandingPricing() {
                 >
                   {plan.name}
                 </h3>
-                <div className="mt-3 flex items-baseline gap-1">
+                <div className="mt-3">
                   {plan.price ? (
                     <>
-                      <span
-                        className={cn(
-                          "font-display text-display font-bold tabular-nums tracking-tight",
-                          plan.dark && "text-white",
-                        )}
-                      >
-                        {plan.price}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-body-sm text-muted-foreground",
-                          plan.dark && "text-neutral-400",
-                        )}
-                      >
-                        {plan.priceNote}
-                      </span>
+                      {plan.priceList ? (
+                        <p
+                          className={cn(
+                            "text-body-sm text-muted-foreground line-through",
+                            plan.dark && "text-neutral-500",
+                          )}
+                        >
+                          {plan.priceList}
+                          {plan.priceNote}
+                        </p>
+                      ) : null}
+                      <div className="flex items-baseline gap-1">
+                        <span
+                          className={cn(
+                            "font-display text-display font-bold tabular-nums tracking-tight",
+                            plan.dark && "text-white",
+                          )}
+                        >
+                          {plan.price}
+                        </span>
+                        <span
+                          className={cn(
+                            "text-body-sm text-muted-foreground",
+                            plan.dark && "text-neutral-400",
+                          )}
+                        >
+                          {plan.priceNote}
+                        </span>
+                      </div>
+                      {plan.priceCaption ? (
+                        <p
+                          className={cn(
+                            "mt-1 text-caption text-muted-foreground",
+                            plan.dark && "text-neutral-400",
+                          )}
+                        >
+                          {plan.priceCaption}
+                        </p>
+                      ) : null}
                     </>
                   ) : (
                     <span className="font-display text-display font-bold tracking-tight text-white">
@@ -204,42 +232,27 @@ export function LandingPricing() {
           ))}
         </div>
 
-        <Reveal className="mt-12 md:mt-16">
-          <div className="overflow-x-auto rounded-xl border border-border bg-card">
-            <table className="w-full min-w-[40rem] text-left text-body-sm">
-              <thead>
-                <tr className="border-b border-border bg-surface-sunken">
-                  <th className="px-4 py-3 font-medium text-muted-foreground">
-                    Comparación
-                  </th>
-                  {plans.map((p) => (
-                    <th
-                      key={p.name}
-                      className="px-4 py-3 font-medium text-foreground"
-                    >
-                      {p.name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {comparison.map((row) => (
-                  <tr key={row.label} className="border-b border-border last:border-0">
-                    <td className="px-4 py-3 text-muted-foreground">
-                      {row.label}
-                    </td>
-                    {row.values.map((v, i) => (
-                      <td
-                        key={`${row.label}-${i}`}
-                        className="px-4 py-3 tabular-nums text-foreground"
-                      >
-                        {v}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <Reveal className="mt-8 md:mt-10">
+          <div className="rounded-xl border border-border bg-card px-5 py-5">
+            <p className="text-body-sm font-medium text-foreground">
+              En todos los planes
+            </p>
+            <ul className="mt-4 grid gap-4 sm:grid-cols-3">
+              {includedInAll.map((item) => (
+                <li key={item.label} className="flex items-start gap-2.5">
+                  <Check
+                    className="mt-0.5 size-4 shrink-0 text-primary"
+                    strokeWidth={1.75}
+                  />
+                  <div>
+                    <p className="text-body-sm text-foreground">{item.label}</p>
+                    <p className="mt-0.5 text-caption text-muted-foreground">
+                      {item.detail}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </div>
         </Reveal>
       </div>

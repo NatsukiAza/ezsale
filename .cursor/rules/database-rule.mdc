@@ -11,27 +11,31 @@ alwaysApply: true
 
 # Database Schema (Supabase/PostgreSQL)
 
-- **organizaciones**: id (uuid), nombre, plan ('local'|'sucursales'|'cadena'|'empresa'|null), cobro_exento (bool; cortesía sin cobro), nota_cobro, pagado_hasta, mp_preapproval_id, mp_payer_email, estado_mp, exceso_tiendas_hasta (timestamptz; gracia 15d al bajar de plan con tiendas de más), tyc_aceptados_en, tyc_version, created_at. Billing y catálogo viven aquí.
+- **organizaciones**: id (uuid), nombre, plan ('local'|'sucursales'|'cadena'|'empresa'|null), cobro_exento (bool; cortesía sin cobro), nota_cobro, pagado_hasta, mp_preapproval_id, mp_payer_email, estado_mp, exceso_tiendas_hasta (timestamptz; gracia 15d al bajar de plan con tiendas de más), tyc_aceptados_en, tyc_version, usa_stock (bool; módulo de stock, reversible, no borra historial), mp_promo_meses (int; ciclos intro al 50%), mp_promo_ciclos_cobrados (int), mp_precio_lleno_ars (int|null; PUT a lista tras la promo), created_at. Billing y catálogo viven aquí.
 - **tiendas**: id, id_organizacion, nombre, eliminado_en (null = activa; soft-delete), created_at. Cajas/sucursales operativas.
 - **perfiles**: id (references auth.users), id_organizacion, id_tienda (null si rol=admin; obligatoria si manager/normal), nombre, apellido, rol ('admin'|'manager'|'normal'), eliminado_en (null = activo; soft-delete).
 - **categorias**: id, id_organizacion, nombre, id_padre (self-reference), eliminado_en.
 - **productos**: id, id_organizacion, id_categoria, nombre, descripcion, precio_actual, eliminado_en.
+- **stock_tienda**: PK (id_producto, id_tienda), cantidad (int, puede ser negativa). Sin fila = producto sin cargar en esa tienda.
+- **stock_traspasos** / **stock_traspaso_lineas**: traspaso instantáneo entre tiendas de la misma org.
+- **stock_movimientos**: libro (venta | edicion_venta | recuento | traspaso_salida | traspaso_entrada); cantidad con signo + cantidad_resultante.
 - **medios_pago**: id, nombre.
 - **ventas**: id, id_tienda (caja), id_usuario, id_medio_pago, monto_total, descuento_monto, fecha_venta.
 - **detalle_ventas**: id, id_venta, id_product, cantidad, precio_unitario_historico, subtotal, descuento_porcentaje.
 - **gastos**: id, id_tienda, id_usuario, monto (>0), descripcion, fecha_gasto, created_at. Egresos de caja por tienda.
-- **mp_webhook_events**: id (text PK), topic, processed_at, email_enviado — idempotencia webhooks MP (solo service role).
+- **mp_webhook_events**: id (text PK), topic, processed_at, email_enviado, promo_ciclo_contado — idempotencia webhooks MP (solo service role).
 
 ## Business Rules
 
 - Multi-tenant: catálogo y billing por `id_organizacion`; ventas/caja por `id_tienda`.
 - Gastos por `id_tienda`. Todos ven gastos de tiendas accesibles; solo `admin`/`manager` insertan, editan o borran. En caja del día = Σ ventas − Σ gastos del mismo día.
 - Catálogo compartido entre todas las tiendas de la org. Solo `admin` muta productos/categorías.
+- Stock opcional (`organizaciones.usa_stock`). Cantidad por producto×tienda; sin fila = sin cargar (no se mueve). Caja puede vender en negativo con aviso. Recuento y traspaso: `admin`/`manager`. Cajero solo ve. Apagar el módulo no borra cantidades ni movimientos.
 - `admin`: ve todas las tiendas (elige activa vía cookie). `manager`/`normal`: una tienda fija.
 - Soft-delete de tienda → soft-delete en cascada de usuarios manager/normal de esa tienda (restaurables).
 - Soft-delete ≥ 60 días → purga definitiva (ventas, usuarios y tienda). Admin puede purgar antes desde el selector.
 - Downgrade con exceso de tiendas: `exceso_tiendas_hasta` (+15 días); luego soft-delete de las más nuevas.
-- Límites de plan: maxUsuarios y maxTiendas (local 1, sucursales 5, cadena 20, empresa ∞).
+- Límites de plan: maxUsuarios y maxTiendas (local 5/1, sucursales 30/5, cadena 60/10, empresa ∞).
 - Un producto puede pertenecer a una categoría o subcategoría (vía id_categoria).
 - El precio de venta se congela en `detalle_ventas.precio_unitario_historico`.
 - `ventas.descuento_monto` es descuento fijo en pesos; `monto_total = max(0, subtotal_lineas - descuento_monto)`.

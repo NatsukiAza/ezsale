@@ -6,7 +6,12 @@ import {
   type AccesoTienda,
 } from "@/lib/billing/access";
 import { ACTIVE_STORE_COOKIE } from "@/lib/stores/constants";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+export type SessionUser = {
+  id: string;
+  email?: string;
+};
 
 export type RolPerfil = "admin" | "manager" | "normal" | string;
 
@@ -42,16 +47,26 @@ export type TiendaBillingRow = {
 export const getServerSession = cache(
   async (): Promise<{
     supabase: SupabaseClient | null;
-    user: User | null;
+    user: SessionUser | null;
   }> => {
     const supabase = await createClient();
     if (!supabase) {
       return { supabase: null, user: null };
     }
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    return { supabase, user };
+    const { data } = await supabase.auth.getClaims();
+    const claims = data?.claims;
+    const sub = claims?.sub;
+    if (!sub) {
+      return { supabase, user: null };
+    }
+    const email = claims.email;
+    return {
+      supabase,
+      user: {
+        id: sub,
+        email: typeof email === "string" ? email : undefined,
+      },
+    };
   },
 );
 
@@ -96,7 +111,7 @@ async function resolveTiendaActiva(params: {
 export const getPerfilTienda = cache(
   async (): Promise<{
     supabase: SupabaseClient | null;
-    user: User | null;
+    user: SessionUser | null;
     perfil: PerfilBasico | null;
     /** Nombre de la caja activa. */
     tiendaNombre: string | null;
@@ -106,6 +121,8 @@ export const getPerfilTienda = cache(
     tienda: TiendaBillingRow | null;
     acceso: AccesoTienda | null;
     tieneTiendaActiva: boolean;
+    /** Controla stock; no es un gate de navegación. */
+    usaStock: boolean;
   }> => {
     const empty = {
       perfil: null as PerfilBasico | null,
@@ -114,6 +131,7 @@ export const getPerfilTienda = cache(
       tienda: null as TiendaBillingRow | null,
       acceso: null as AccesoTienda | null,
       tieneTiendaActiva: false,
+      usaStock: false,
     };
 
     const { supabase, user } = await getServerSession();
@@ -144,7 +162,7 @@ export const getPerfilTienda = cache(
       supabase
         .from("organizaciones")
         .select(
-          "nombre, created_at, cobro_exento, pagado_hasta, plan, estado_mp, mp_preapproval_id, nota_cobro, exceso_tiendas_hasta",
+          "nombre, created_at, cobro_exento, pagado_hasta, plan, estado_mp, mp_preapproval_id, nota_cobro, exceso_tiendas_hasta, usa_stock",
         )
         .eq("id", idOrganizacion)
         .maybeSingle(),
@@ -183,6 +201,8 @@ export const getPerfilTienda = cache(
         })
       : null;
 
+    const usaStock = Boolean(orgRow?.usa_stock);
+
     if (!activa) {
       return {
         supabase,
@@ -200,6 +220,7 @@ export const getPerfilTienda = cache(
         tienda: organizacion,
         acceso,
         tieneTiendaActiva: false,
+        usaStock,
       };
     }
 
@@ -219,6 +240,7 @@ export const getPerfilTienda = cache(
       tienda: organizacion,
       acceso,
       tieneTiendaActiva: true,
+      usaStock,
     };
   },
 );
