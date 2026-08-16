@@ -29,19 +29,18 @@ export function LoginForm() {
       return;
     }
     setLoading(true);
-    const { error: signError } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
-      password,
-    });
+    const { data: signData, error: signError } =
+      await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
     if (signError) {
       setLoading(false);
       setError(mapAuthErrorMessage(signError.message));
       return;
     }
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = signData.user;
     const { data: perfilLogin } = user
       ? await supabase
           .from("perfiles")

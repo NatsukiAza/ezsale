@@ -2,8 +2,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import {
   CHECKOUT_PLANS,
+  INTRO_DISCOUNT_MONTHS,
   getPlan,
+  isIntroEligible,
   parsePlanId,
+  precioIntroArs,
   type PlanId,
 } from "@/lib/billing/plans";
 import {
@@ -89,7 +92,7 @@ export async function POST(request: Request) {
   const { data: org } = await admin
     .from("organizaciones")
     .select(
-      "id, nombre, plan, cobro_exento, mp_preapproval_id, mp_payer_email, exceso_tiendas_hasta",
+      "id, nombre, plan, cobro_exento, pagado_hasta, mp_preapproval_id, mp_payer_email, exceso_tiendas_hasta",
     )
     .eq("id", idOrg)
     .maybeSingle();
@@ -141,6 +144,12 @@ export async function POST(request: Request) {
   const samePayer =
     (org.mp_payer_email as string | null)?.toLowerCase() ===
     payerEmail.toLowerCase();
+  const introEligible = isIntroEligible(
+    (org.pagado_hasta as string | null) ?? null,
+  );
+  const chargeAmount = introEligible
+    ? precioIntroArs(planDef.precioArs)
+    : planDef.precioArs;
 
   if (existingId && samePlan && samePayer) {
     try {
@@ -174,7 +183,7 @@ export async function POST(request: Request) {
         auto_recurring: {
           frequency: 1,
           frequency_type: "months",
-          transaction_amount: planDef.precioArs,
+          transaction_amount: chargeAmount,
           currency_id: "ARS",
         },
       },
@@ -207,6 +216,17 @@ export async function POST(request: Request) {
         mp_payer_email: payerEmail,
         estado_mp: created.status ?? "pending",
         exceso_tiendas_hasta: exceso,
+        ...(introEligible
+          ? {
+              mp_promo_meses: INTRO_DISCOUNT_MONTHS,
+              mp_promo_ciclos_cobrados: 0,
+              mp_precio_lleno_ars: planDef.precioArs,
+            }
+          : {
+              mp_promo_meses: 0,
+              mp_promo_ciclos_cobrados: 0,
+              mp_precio_lleno_ars: null,
+            }),
       })
       .eq("id", idOrg);
 

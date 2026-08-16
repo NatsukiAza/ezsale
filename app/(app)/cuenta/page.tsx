@@ -102,6 +102,7 @@ export default async function CuentaPage({
           currentPlan={planId}
           isAdmin={isAdmin}
           cobroExento={tienda.cobro_exento}
+          introEligible={tienda.pagado_hasta == null}
         />
       </section>
     </div>

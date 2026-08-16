@@ -34,9 +34,11 @@ Cada tienda es un entorno aislado: los datos de una tienda no son accesibles por
 
 **Período de prueba.** Al registrarse, la tienda dispone de un trial de treinta (30) días corridos desde la creación de la cuenta, sin cargo. Finalizado el trial sin suscripción activa, el acceso podrá bloquearse hasta regularizar el pago.
 
+**Precio introductorio.** En la primera suscripción de una organización (la primera vez que se acredita un cobro), los tres (3) primeros ciclos mensuales se facturan al cincuenta por ciento (50%) de la tarifa vigente del plan elegido. A partir del cuarto ciclo se cobra la tarifa llena publicada. El descuento no aplica a cambios de plan, reactivaciones ni a organizaciones que ya hubieran pagado una suscripción.
+
 **Comprobantes.** Los avisos o recibos de pago enviados por email son comprobantes de suscripción del servicio SaaS y no constituyen factura fiscal ni documento AFIP.
 
-**Actualización de precios.** Debido al contexto macroeconómico, los precios de los planes están sujetos a revisión periódica. Cualquier modificación en el costo de la suscripción será notificada al Usuario con al menos treinta (30) días de anticipación.
+**Actualización de precios.** Debido al contexto macroeconómico, los precios de los planes están sujetos a revisión periódica. Cualquier modificación en el costo de la suscripción será notificada al Usuario con al menos treinta (30) días de anticipación. La tarifa vigente del plan Sucursales es de $100.000 (cien mil pesos argentinos) mensuales.
 
 **Mora y suspensión.** Vencida la fecha de cobertura de la suscripción sin pago acreditado, el Usuario dispone de un período de gracia de treinta (30) días corridos. Durante ese lapso podrá recibir avisos de regularización y/o acceso con restricciones según la configuración vigente de la plataforma. Transcurrida la gracia sin pago, el acceso quedará bloqueado hasta acreditar la suscripción. El servicio se reactivará una vez acreditado el pago adeudado.
 
