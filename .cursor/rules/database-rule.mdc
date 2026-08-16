@@ -41,5 +41,5 @@ alwaysApply: true
 - `ventas.descuento_monto` es descuento fijo en pesos; `monto_total = max(0, subtotal_lineas - descuento_monto)`.
 - Listados de catálogo / nueva venta: `eliminado_en is null`. Ventas históricas resuelven nombre vía join aunque el producto esté soft-deleted.
 - Al soft-deletear una categoría se soft-deleta sus productos y subcategorías.
-- Suscripción a nivel organización. Si `cobro_exento`, nunca se bloquea. Sin pagos, trial = `created_at + 30 días`. Con `pagado_hasta`, gracia de 30 días y luego bloqueo. Recibo de pago por email solo a admins.
+- Suscripción a nivel organización. Si `cobro_exento`, nunca se bloquea. Sin pagos, trial = `created_at + 30 días`. Con `pagado_hasta`, gracia de 15 días y luego bloqueo. Recibo de pago por email solo a admins.
 - Si `plan` es null (cortesía/caridad), los límites de usuarios/tiendas/reportes son los del plan Cadena.
