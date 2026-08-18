@@ -11,7 +11,6 @@ import {
   introDiscountNote,
 } from "@/lib/billing/plans";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { FormField } from "@/components/app/form-field";
@@ -27,7 +26,6 @@ export function RegisterForm({
 }: {
   initialPlan?: PlanId | null;
 }) {
-  const router = useRouter();
   const [nombreTienda, setNombreTienda] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
@@ -49,29 +47,15 @@ export function RegisterForm({
   async function signInAfterRegister() {
     const supabase = createClient();
     if (!supabase) return false;
-    const { data: signData, error: signErr } =
-      await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+    const { error: signErr } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     if (signErr) {
       setError(mapAuthErrorMessage(signErr.message));
       return false;
     }
-    const user = signData.user;
-    const { data: perfilLogin } = user
-      ? await supabase
-          .from("perfiles")
-          .select("debe_cambiar_password")
-          .eq("id", user.id)
-          .maybeSingle()
-      : { data: null };
-    if (perfilLogin?.debe_cambiar_password === true) {
-      router.push("/auth/cambiar-password");
-    } else {
-      router.push("/seleccionar-tienda");
-    }
-    router.refresh();
+    window.location.assign("/seleccionar-tienda");
     return true;
   }
 
@@ -179,8 +163,7 @@ export function RegisterForm({
         return;
       }
 
-      router.push("/seleccionar-tienda");
-      router.refresh();
+      window.location.assign("/seleccionar-tienda");
       return;
     }
 

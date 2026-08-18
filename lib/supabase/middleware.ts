@@ -33,9 +33,11 @@ function redirectWithCookies(
   request: NextRequest,
   pathname: string,
   from: NextResponse,
+  search?: string,
 ) {
   const u = request.nextUrl.clone();
   u.pathname = pathname;
+  if (search !== undefined) u.search = search;
   const redirect = NextResponse.redirect(u);
   from.cookies.getAll().forEach((c) => {
     redirect.cookies.set(c.name, c.value);
@@ -84,7 +86,6 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/seleccionar-tienda");
   const isAuthPage = path === "/login" || path === "/registro";
   const isCuenta = path.startsWith("/cuenta");
-  const isSelector = path.startsWith("/seleccionar-tienda");
 
   if (!url || !key) {
     if (isProtected) {
@@ -138,7 +139,7 @@ export async function updateSession(request: NextRequest) {
 
   if (userId && needsPerfilGate(path, isProtected)) {
     const cached = parseGate(request.cookies.get(GATE_COOKIE)?.value);
-    const forceBillingRefresh = isCuenta || isSelector;
+    const forceBillingRefresh = isCuenta;
 
     if (cached && !forceBillingRefresh) {
       // Soft-delete se chequea en RSC (getPerfilTienda); el gate evita
@@ -163,7 +164,12 @@ export async function updateSession(request: NextRequest) {
           maxAge: 0,
           sameSite: "lax",
         });
-        return redirectWithCookies(request, "/login", supabaseResponse);
+        return redirectWithCookies(
+          request,
+          "/login",
+          supabaseResponse,
+          "?error=eliminada",
+        );
       }
 
       debeCambiarPassword = perfil?.debe_cambiar_password === true;

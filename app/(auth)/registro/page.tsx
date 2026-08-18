@@ -1,4 +1,5 @@
 import { RegisterForm } from "@/app/components/register-form";
+import { preconnect } from "react-dom";
 import { isSupabaseConfigured } from "@/lib/env";
 import { parsePlanId } from "@/lib/billing/plans";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,6 +12,8 @@ export default async function RegistroPage({
   searchParams: Promise<{ plan?: string }>;
 }) {
   const configured = isSupabaseConfigured();
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseUrl) preconnect(supabaseUrl);
   const sp = await searchParams;
   const initialPlan = parsePlanId(sp.plan);
 
