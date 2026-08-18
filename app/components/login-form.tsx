@@ -3,7 +3,6 @@
 import { mapAuthErrorMessage } from "@/lib/auth-errors";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { FormField } from "@/components/app/form-field";
@@ -11,11 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-export function LoginForm() {
-  const router = useRouter();
+export function LoginForm({
+  initialError = null,
+}: {
+  initialError?: string | null;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -29,40 +31,19 @@ export function LoginForm() {
       return;
     }
     setLoading(true);
-    const { data: signData, error: signError } =
-      await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+    const { error: signError } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     if (signError) {
       setLoading(false);
       setError(mapAuthErrorMessage(signError.message));
       return;
     }
 
-    const user = signData.user;
-    const { data: perfilLogin } = user
-      ? await supabase
-          .from("perfiles")
-          .select("debe_cambiar_password, eliminado_en")
-          .eq("id", user.id)
-          .maybeSingle()
-      : { data: null };
-
-    if (perfilLogin?.eliminado_en) {
-      await supabase.auth.signOut();
-      setLoading(false);
-      setError("Esta cuenta fue eliminada. Contactá a un administrador.");
-      return;
-    }
-
-    setLoading(false);
-    if (perfilLogin?.debe_cambiar_password === true) {
-      router.push("/auth/cambiar-password");
-    } else {
-      router.push("/seleccionar-tienda");
-    }
-    router.refresh();
+    // Navegación completa para mandar las cookies de sesión en el próximo
+    // request. El proxy redirige a cambiar-password / cuenta / selector.
+    window.location.assign("/dashboard");
   }
 
   return (

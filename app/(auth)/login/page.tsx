@@ -1,12 +1,25 @@
 import { LoginForm } from "@/app/components/login-form";
 import Link from "next/link";
+import { preconnect } from "react-dom";
 import { isSupabaseConfigured } from "@/lib/env";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ThemeToggle } from "@/components/app/theme-toggle";
 import { BrandMark } from "@/components/app/brand-mark";
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (supabaseUrl) preconnect(supabaseUrl);
+
   const configured = isSupabaseConfigured();
+  const sp = await searchParams;
+  const initialError =
+    sp.error === "eliminada"
+      ? "Esta cuenta fue eliminada. Contactá a un administrador."
+      : null;
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -36,7 +49,7 @@ export default function LoginPage() {
           </Alert>
         ) : null}
 
-        <LoginForm />
+        <LoginForm initialError={initialError} />
 
         <p className="mt-6 text-center text-body-sm text-muted-foreground">
           <Link href="/" className="font-medium text-primary hover:underline">

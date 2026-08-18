@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Fragment, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, Plus, Receipt } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/app/page-header";
@@ -96,10 +97,16 @@ export function DashboardView({
   totalSemana,
   bestsellers,
 }: DashboardViewProps) {
+  const router = useRouter();
   const ticketPromedio =
     cantidadVentasHoy > 0 ? totalHoy / cantidadVentasHoy : 0;
   const [expanded, setExpanded] = useState<string | null>(null);
   const sparkValues = diasSemana.map((d) => d.monto);
+
+  useEffect(() => {
+    // El SSR puede venir de router cache stale (misma causa que Caja).
+    router.refresh();
+  }, [router]);
 
   return (
     <div className="pb-10">
