@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/sheet";
 import { formatArs } from "@/lib/format";
 import { useStayOnNewSale } from "@/lib/preferences/stay-on-new-sale";
+import { revalidateVentas } from "@/lib/ventas/actions";
 import { cn } from "@/lib/utils";
 
 type CategoriaRow = { id: string; nombre: string };
@@ -521,10 +522,6 @@ export function NewSaleView({
   );
 
   useEffect(() => {
-    router.prefetch("/dashboard");
-  }, [router]);
-
-  useEffect(() => {
     searchRef.current?.focus();
   }, []);
 
@@ -693,10 +690,11 @@ export function NewSaleView({
         return next;
       });
     }
-    if (!stayOnNewSale) {
-      router.prefetch("/dashboard");
-    }
-    await new Promise((resolve) => setTimeout(resolve, 900));
+
+    await Promise.all([
+      revalidateVentas(),
+      new Promise((resolve) => setTimeout(resolve, 900)),
+    ]);
 
     setCart({});
     setDescuentoMontoRaw("");
@@ -711,6 +709,7 @@ export function NewSaleView({
     }
 
     router.push("/dashboard");
+    router.refresh();
   }
 
   const canRegister =
