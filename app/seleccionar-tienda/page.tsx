@@ -25,6 +25,14 @@ export default async function SeleccionarTiendaPage() {
       organizacionNombre={tienda?.nombre ?? "Tu negocio"}
       idOrganizacion={perfil.id_organizacion}
       reportesMinYmd={reportesMinYmd}
+      billing={
+        acceso?.phase === "atrasado"
+          ? {
+              diasRestantes: acceso.diasRestantes,
+              neverPaid: acceso.neverPaid,
+            }
+          : null
+      }
     />
   );
 }

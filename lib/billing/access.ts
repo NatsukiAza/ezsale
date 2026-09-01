@@ -25,6 +25,8 @@ export type AccesoTienda = {
   bloqueoEn: Date;
   plan: PlanId | null;
   cobroExento: boolean;
+  /** Nunca hubo `pagado_hasta` (trial, no un cobro fallido). */
+  neverPaid: boolean;
 };
 
 function toDate(value: string | Date): Date {
@@ -53,7 +55,8 @@ function daysUntil(until: Date, now: Date): number {
 /**
  * Acceso a la app según cobro.
  * - cobro_exento → siempre ok
- * - sin pagado_hasta → trial = created_at + TRIAL_DAYS; al vencer → bloqueado (sin gracia)
+ * - sin pagado_hasta → trial = created_at + TRIAL_DAYS; al vencer → atrasado
+ *   hasta +GRACE_DAYS; luego bloqueado
  * - con pagado_hasta → ok hasta esa fecha; atrasado hasta +GRACE_DAYS; luego bloqueado
  */
 export function getAccesoTienda(
@@ -62,6 +65,7 @@ export function getAccesoTienda(
 ): AccesoTienda {
   const plan = parsePlanId(tienda.plan ?? null);
   const cobroExento = tienda.cobro_exento === true;
+  const neverPaid = !tienda.pagado_hasta;
 
   if (cobroExento) {
     const far = addDays(now, 36500);
@@ -73,6 +77,7 @@ export function getAccesoTienda(
       bloqueoEn: far,
       plan,
       cobroExento: true,
+      neverPaid,
     };
   }
 
@@ -81,14 +86,8 @@ export function getAccesoTienda(
     ? toDate(tienda.pagado_hasta)
     : null;
 
-  const neverPaid = !pagadoHasta;
-  const cubiertoHasta = neverPaid
-    ? addDays(createdAt, TRIAL_DAYS)
-    : pagadoHasta;
-  // Trial sin gracia: al vencer trial = bloqueo. Con pago: +GRACE_DAYS de atraso.
-  const bloqueoEn = neverPaid
-    ? cubiertoHasta
-    : addDays(cubiertoHasta, GRACE_DAYS);
+  const cubiertoHasta = pagadoHasta ?? addDays(createdAt, TRIAL_DAYS);
+  const bloqueoEn = addDays(cubiertoHasta, GRACE_DAYS);
 
   if (now.getTime() > bloqueoEn.getTime()) {
     return {
@@ -99,6 +98,7 @@ export function getAccesoTienda(
       bloqueoEn,
       plan,
       cobroExento: false,
+      neverPaid,
     };
   }
 
@@ -111,6 +111,7 @@ export function getAccesoTienda(
       bloqueoEn,
       plan,
       cobroExento: false,
+      neverPaid,
     };
   }
 
@@ -123,6 +124,7 @@ export function getAccesoTienda(
       bloqueoEn,
       plan,
       cobroExento: false,
+      neverPaid,
     };
   }
 
@@ -134,6 +136,7 @@ export function getAccesoTienda(
     bloqueoEn,
     plan,
     cobroExento: false,
+    neverPaid,
   };
 }
 
