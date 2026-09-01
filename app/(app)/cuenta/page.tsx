@@ -12,7 +12,8 @@ export default async function CuentaPage({
 }: {
   searchParams: Promise<{ mp?: string }>;
 }) {
-  const { user, perfil, tienda, acceso, tiendaNombre } = await getPerfilTienda();
+  const { user, perfil, tienda, acceso, tiendaNombre, organizacionNombre } =
+    await getPerfilTienda();
   if (!user) redirect("/login");
   if (!perfil?.id_organizacion || !tienda || !acceso)
     redirect("/registro/completar");
@@ -26,7 +27,7 @@ export default async function CuentaPage({
   const phaseLabel: Record<string, string> = {
     ok: "Al día",
     trial: "Período de prueba",
-    atrasado: "Pago pendiente",
+    atrasado: acceso.neverPaid ? "Prueba vencida" : "Pago pendiente",
     bloqueado: "Acceso bloqueado",
   };
 
@@ -35,15 +36,17 @@ export default async function CuentaPage({
       <div>
         <h1 className="text-h1">Cuenta y suscripción</h1>
         <p className="mt-2 text-body text-muted-foreground">
-          {tiendaNombre ?? "Tu tienda"} · gestioná el plan de EZSale
+          {organizacionNombre ?? tiendaNombre ?? "Tu negocio"} · gestioná el
+          plan de EZSale
         </p>
       </div>
 
       {acceso.phase === "bloqueado" ? (
         <Alert variant="destructive">
           <AlertDescription>
-            No recibimos el pago de tu suscripción. El acceso está bloqueado
-            hasta que regularices el cobro.
+            {acceso.neverPaid
+              ? "Tu período de prueba venció y no recibimos un pago. El acceso está bloqueado hasta que te suscribas."
+              : "No recibimos el pago de tu suscripción. El acceso está bloqueado hasta que regularices el cobro."}
           </AlertDescription>
         </Alert>
       ) : null}
@@ -95,7 +98,9 @@ export default async function CuentaPage({
       <section className="space-y-4 rounded-lg border border-border bg-card p-5">
         <h2 className="text-lg font-semibold tracking-tight">
           {acceso.phase === "bloqueado" || acceso.phase === "atrasado"
-            ? "Reactivar suscripción"
+            ? acceso.neverPaid
+              ? "Suscribirse"
+              : "Reactivar suscripción"
             : "Suscribirse o cambiar plan"}
         </h2>
         <CuentaCheckout

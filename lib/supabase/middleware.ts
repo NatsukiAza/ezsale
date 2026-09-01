@@ -139,7 +139,9 @@ export async function updateSession(request: NextRequest) {
 
   if (userId && needsPerfilGate(path, isProtected)) {
     const cached = parseGate(request.cookies.get(GATE_COOKIE)?.value);
-    const forceBillingRefresh = isCuenta;
+    // /cuenta siempre refresca; si el gate dice bloqueado, revalidar (pago
+    // o gracia) para no dejarlos 10 min afuera con un cookie viejo.
+    const forceBillingRefresh = isCuenta || cached?.billingBlocked === true;
 
     if (cached && !forceBillingRefresh) {
       // Soft-delete se chequea en RSC (getPerfilTienda); el gate evita
