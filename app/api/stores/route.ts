@@ -8,12 +8,11 @@ import {
 } from "@/lib/stores/constants";
 import {
   computeExcesoTiendasHasta,
-  enforceExcesoTiendas,
   purgeTiendaPermanente,
-  purgeTiendasVencidas,
   restoreTiendaYUsuarios,
   softDeleteTiendasYUsuarios,
 } from "@/lib/stores/exceso-tiendas";
+import { loadOrgTiendas } from "@/lib/stores/load-org-tiendas";
 
 async function requireOrgMember() {
   const supabase = await createClient();
@@ -25,10 +24,10 @@ async function requireOrgMember() {
       ),
     };
   }
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  // getClaims verifica el JWT en local. getUser() iba siempre al Auth server.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = claimsData?.claims?.sub;
+  if (!userId) {
     return {
       error: NextResponse.json(
         { ok: false, error: "Iniciá sesión." },
@@ -36,6 +35,11 @@ async function requireOrgMember() {
       ),
     };
   }
+  const email = claimsData?.claims?.email;
+  const user = {
+    id: userId,
+    email: typeof email === "string" ? email : undefined,
+  };
   const { data: perfil } = await supabase
     .from("perfiles")
     .select("id_organizacion, id_tienda, rol, eliminado_en")
@@ -70,83 +74,25 @@ export async function GET() {
     );
   }
 
-  const { data: org } = await admin
-    .from("organizaciones")
-    .select("nombre, plan, exceso_tiendas_hasta")
-    .eq("id", ctx.idOrganizacion)
-    .maybeSingle();
-
-  if (!org) {
-    return NextResponse.json(
-      { ok: false, error: "Organización no encontrada." },
-      { status: 404 },
-    );
-  }
-
-  const planId = parsePlanId(org.plan) ?? undefined;
-  await enforceExcesoTiendas({
+  const loaded = await loadOrgTiendas({
     admin,
     idOrganizacion: ctx.idOrganizacion,
-    plan: planId,
-    excesoHasta: (org.exceso_tiendas_hasta as string | null) ?? null,
+    rol: ctx.rol,
+    idTiendaAsignada: ctx.idTiendaAsignada,
   });
-  // Limpieza: soft-delete ≥ 60 días → borrado permanente
-  await purgeTiendasVencidas({
-    admin,
-    idOrganizacion: ctx.idOrganizacion,
-  });
-
-  const { data: orgFresh } = await admin
-    .from("organizaciones")
-    .select("nombre, plan, exceso_tiendas_hasta")
-    .eq("id", ctx.idOrganizacion)
-    .single();
-
-  let query = admin
-    .from("tiendas")
-    .select("id, nombre, created_at, eliminado_en")
-    .eq("id_organizacion", ctx.idOrganizacion)
-    .order("created_at", { ascending: true });
-
-  if (ctx.rol !== "admin") {
-    if (!ctx.idTiendaAsignada) {
-      return NextResponse.json(
-        { ok: false, error: "Sin tienda asignada." },
-        { status: 400 },
-      );
-    }
-    query = query.eq("id", ctx.idTiendaAsignada).is("eliminado_en", null);
-  }
-
-  const { data: tiendas, error } = await query;
-  if (error) {
+  if (!loaded.ok) {
     return NextResponse.json(
-      { ok: false, error: error.message },
-      { status: 400 },
+      { ok: false, error: loaded.error },
+      { status: loaded.status },
     );
   }
-
-  const plan = getPlan(parsePlanId(orgFresh?.plan));
-  const activas = (tiendas ?? []).filter((t) => !t.eliminado_en);
-  const eliminadas =
-    ctx.rol === "admin"
-      ? (tiendas ?? []).filter((t) => t.eliminado_en)
-      : [];
 
   return NextResponse.json({
     ok: true,
-    organizacion: {
-      nombre: orgFresh?.nombre ?? org.nombre,
-      plan: orgFresh?.plan ?? org.plan,
-      planNombre: plan.name,
-      exceso_tiendas_hasta:
-        (orgFresh?.exceso_tiendas_hasta as string | null) ?? null,
-      maxTiendas: plan.maxTiendas,
-      tiendasActivas: activas.length,
-    },
-    tiendas: activas,
-    tiendasEliminadas: eliminadas,
-    rol: ctx.rol,
+    organizacion: loaded.data.organizacion,
+    tiendas: loaded.data.tiendas,
+    tiendasEliminadas: loaded.data.tiendasEliminadas,
+    rol: loaded.data.rol,
   });
 }
 
