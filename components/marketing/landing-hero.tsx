@@ -63,7 +63,7 @@ export function LandingHero() {
             Cobrá en segundos. Entendé tu negocio.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-body text-white/75 md:text-base md:leading-relaxed">
-            EZSale es el punto de venta para comercios y gastronomía en
+            Toque es el punto de venta para comercios y gastronomía en
             Argentina. Cargá una venta en tres toques, mirá los números del día
             al instante y manejá todas tus sucursales desde una sola cuenta.
           </p>

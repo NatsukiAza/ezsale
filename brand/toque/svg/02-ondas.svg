@@ -1,0 +1,23 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Toque  Ondas">
+  <title>Toque  Ondas</title>
+  <!-- Matriz de puntos que se expande desde el toque, hacia arriba y a la derecha -->
+  <g fill="currentColor">
+    <!-- Anillo 1 · r=12 -->
+    <circle cx="52" cy="60" r="3"/><circle cx="48.49" cy="51.51" r="3"/><circle cx="40" cy="48" r="3"/><circle cx="31.51" cy="51.51" r="3"/>
+    <circle cx="28" cy="60" r="3"/><circle cx="31.51" cy="68.49" r="3"/><circle cx="40" cy="72" r="3"/><circle cx="48.49" cy="68.49" r="3"/>
+    <!-- Anillo 2 · r=22 -->
+    <circle cx="62" cy="60" r="2.5"/><circle cx="59.05" cy="49" r="2.5"/><circle cx="51" cy="40.95" r="2.5"/><circle cx="40" cy="38" r="2.5"/>
+    <circle cx="29" cy="40.95" r="2.5"/><circle cx="20.95" cy="49" r="2.5"/><circle cx="59.05" cy="71" r="2.5"/><circle cx="51" cy="79.05" r="2.5"/>
+    <!-- Anillo 3 · r=32 -->
+    <g opacity="0.75">
+      <circle cx="72" cy="60" r="2"/><circle cx="69.57" cy="47.75" r="2"/><circle cx="62.63" cy="37.37" r="2"/><circle cx="52.25" cy="30.43" r="2"/>
+      <circle cx="40" cy="28" r="2"/><circle cx="27.75" cy="30.43" r="2"/><circle cx="17.37" cy="37.37" r="2"/><circle cx="69.57" cy="72.25" r="2"/><circle cx="62.63" cy="82.63" r="2"/>
+    </g>
+    <!-- Anillo 4 · r=42 -->
+    <g opacity="0.4">
+      <circle cx="82" cy="60" r="1.6"/><circle cx="76.37" cy="39" r="1.6"/><circle cx="61" cy="23.63" r="1.6"/><circle cx="40" cy="18" r="1.6"/><circle cx="19" cy="23.63" r="1.6"/><circle cx="80.57" cy="70.87" r="1.6"/>
+    </g>
+  </g>
+  <!-- El toque -->
+  <circle cx="40" cy="60" r="6.5" fill="var(--toque-accent, currentColor)"/>
+</svg>

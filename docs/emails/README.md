@@ -14,8 +14,8 @@ HTML on-brand para pegar en el dashboard de Supabase. Usan los tokens de
 
 | Plantilla en Supabase | Archivo | Subject sugerido |
 | --- | --- | --- |
-| Confirm signup | `confirm-signup.html` | `Confirmá tu cuenta en EZSale` |
-| Reset password | `reset-password.html` | `Restablecé tu contraseña — EZSale` |
+| Confirm signup | `confirm-signup.html` | `Confirmá tu cuenta en Toque` |
+| Reset password | `reset-password.html` | `Restablecé tu contraseña — Toque` |
 
 ## Variables de Supabase
 

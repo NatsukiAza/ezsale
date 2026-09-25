@@ -9,7 +9,7 @@ import { Reveal } from "@/components/marketing/reveal";
 const faqs = [
   {
     q: "¿Necesito instalar algo?",
-    a: "No. EZSale corre en el navegador. Abrís la URL, iniciás sesión y cobrás. Funciona en notebook, escritorio y celular.",
+    a: "No. Toque corre en el navegador. Abrís la URL, iniciás sesión y cobrás. Funciona en notebook, escritorio y celular.",
   },
   {
     q: "¿Sirve para gastronomía y para comercio?",

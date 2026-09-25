@@ -35,7 +35,7 @@ export default async function CuentaPage({
       <div>
         <h1 className="text-h1">Cuenta y suscripción</h1>
         <p className="mt-2 text-body text-muted-foreground">
-          {tiendaNombre ?? "Tu tienda"} · gestioná el plan de EZSale
+          {tiendaNombre ?? "Tu tienda"} · gestioná el plan de Toque
         </p>
       </div>
 

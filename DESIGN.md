@@ -1,9 +1,9 @@
-# Sistema de diseño de EZSale
+# Sistema de diseño de Toque
 
-Este documento es la fuente de verdad del diseño de EZSale. Si algo en el código
+Este documento es la fuente de verdad del diseño de Toque. Si algo en el código
 contradice lo que está acá, el código está mal.
 
-EZSale es un sistema de punto de venta multi-tienda. La gente que lo usa mira
+Toque es un sistema de punto de venta multi-tienda. La gente que lo usa mira
 números todo el día y necesita cargar una venta rápido. El diseño tiene que
 servir a eso, no a la primera impresión.
 
@@ -101,7 +101,7 @@ de componente (--control-h, --sidebar-w)
 Se declaran en `app/globals.css` y no se usan directamente en el markup.
 
 **Arcilla** — el acento de marca. Un rojo anaranjado terroso, heredado de la
-identidad original de EZSale pero más profundo y menos saturado.
+identidad de Toque pero más profundo y menos saturado.
 
 | Token | Hex | Uso |
 | --- | --- | --- |

@@ -1,3 +1,4 @@
+import { TicketMark } from "@/components/app/ticket-mark";
 import { formatArs } from "@/lib/format";
 import {
   ChartColumn,
@@ -42,9 +43,9 @@ export function DashboardMock() {
   return (
     <div className="absolute inset-0 flex overflow-hidden bg-background text-[9px] leading-tight text-foreground sm:text-[10px] md:text-[11px]">
       <aside className="hidden w-[28%] max-w-40 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-2 sm:flex">
-        <div className="mb-3 px-1.5 font-display text-sm font-bold tracking-tight">
-          <span className="text-primary">EZ</span>
-          <span>Sale</span>
+        <div className="mb-3 flex items-center gap-1.5 px-1.5 font-display text-sm font-bold tracking-tight">
+          <TicketMark className="size-4" />
+          <span>Toque</span>
         </div>
         <div className="mb-3 flex items-center gap-1.5 px-1.5 text-muted-foreground">
           <Store className="size-3 shrink-0" strokeWidth={1.75} />

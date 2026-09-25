@@ -11,7 +11,7 @@ import { LandingFinalCta } from "@/components/marketing/landing-final-cta";
 import { LandingFooter } from "@/components/marketing/landing-footer";
 
 export const metadata: Metadata = {
-  title: "EZSale — Punto de venta para comercios y gastronomía",
+  title: "Toque — Punto de venta para comercios y gastronomía",
   description:
     "Cargá una venta en tres toques, mirá los números del día y manejá todas tus sucursales desde una sola cuenta.",
 };

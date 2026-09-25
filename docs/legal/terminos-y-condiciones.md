@@ -1,10 +1,10 @@
 # TÉRMINOS Y CONDICIONES
 
 **Acuerdo de Licencia de Uso de Software (SaaS)**  
-**Producto:** EZSale  
+**Producto:** Toque  
 **Última actualización:** Agosto de 2026
 
-Los presentes Términos y Condiciones ("TyC") rigen el acceso y uso de EZSale, sistema de gestión de ventas provisto como Software como Servicio (SaaS) por **Santino Azarola**, CUIT **20-45219619-1**, con domicilio en Chacabuco 413, Ramos Mejía, Partido de La Matanza, Provincia de Buenos Aires, correo de contacto **santinoazarola@gmail.com** (el "Proveedor").
+Los presentes Términos y Condiciones ("TyC") rigen el acceso y uso de Toque, sistema de gestión de ventas provisto como Software como Servicio (SaaS) por **Santino Azarola**, CUIT **20-45219619-1**, con domicilio en Chacabuco 413, Ramos Mejía, Partido de La Matanza, Provincia de Buenos Aires, correo de contacto **santinoazarola@gmail.com** (el "Proveedor").
 
 Al marcar la casilla de aceptación al registrarse, crear una cuenta, pagar una suscripción o continuar usando la plataforma, el Usuario declara haber leído y aceptado íntegramente estos TyC.
 
@@ -98,7 +98,7 @@ El tratamiento de datos personales (por ejemplo, nombre, apellido, email y datos
 
 **Rol de las partes.** El Usuario, como responsable de los datos de su personal y de la información que cargue en la plataforma, garantiza contar con bases legítimas para su tratamiento. El Proveedor actúa como proveedor tecnológico respecto de esos datos, limitándose a alojarlos y procesarlos para prestar el servicio.
 
-**Encargados.** El Proveedor puede utilizar proveedores de infraestructura, autenticación, email y pagos (incluyendo, según corresponda, hosting en la nube, autenticación y Mercado Pago) estrictamente necesarios para operar EZSale.
+**Encargados.** El Proveedor puede utilizar proveedores de infraestructura, autenticación, email y pagos (incluyendo, según corresponda, hosting en la nube, autenticación y Mercado Pago) estrictamente necesarios para operar Toque.
 
 **Derechos.** El titular de los datos puede solicitar acceso, rectificación o actualización escribiendo a **santinoazarola@gmail.com**.
 
@@ -130,7 +130,7 @@ La versión vigente se identifica por la fecha de "Última actualización" al in
 
 Estos TyC se rigen por las leyes de la República Argentina.
 
-Para cualquier controversia derivada de estos TyC o del uso de EZSale, las partes se someten a los tribunales ordinarios con competencia en el **Departamento Judicial de La Matanza**, con asiento en **San Justo** (Provincia de Buenos Aires), con renuncia a cualquier otro fuero que pudiera corresponder, sin perjuicio de los derechos del consumidor cuando resulten irrenunciables.
+Para cualquier controversia derivada de estos TyC o del uso de Toque, las partes se someten a los tribunales ordinarios con competencia en el **Departamento Judicial de La Matanza**, con asiento en **San Justo** (Provincia de Buenos Aires), con renuncia a cualquier otro fuero que pudiera corresponder, sin perjuicio de los derechos del consumidor cuando resulten irrenunciables.
 
 ---
 

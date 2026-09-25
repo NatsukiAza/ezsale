@@ -9,7 +9,7 @@ export function LandingFinalCta() {
       <div className="mx-auto max-w-3xl px-6 text-center">
         <Reveal>
           <h2 className="text-section-title text-white">
-            Empezá a cobrar con EZSale
+            Empezá a cobrar con Toque
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-body text-white/75 md:text-base md:leading-relaxed">
             Creá tu tienda en minutos. Tenés 30 días de prueba sin tarjeta.

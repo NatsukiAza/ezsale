@@ -9,7 +9,7 @@ export function assertBillingAllowed(tienda: TiendaBilling) {
     {
       ok: false,
       error:
-        "La suscripción está vencida. Regularizá el pago para seguir usando EZSale.",
+        "La suscripción está vencida. Regularizá el pago para seguir usando Toque.",
       code: "billing_blocked",
     },
     { status: 402 },

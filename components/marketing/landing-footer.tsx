@@ -75,7 +75,7 @@ export function LandingFooter() {
       </div>
 
       <div className="border-t border-neutral-800 py-5 text-center text-caption text-neutral-500">
-        © {year} EZSale - Santino Azarola
+        © {year} Toque - Santino Azarola
       </div>
     </footer>
   );
