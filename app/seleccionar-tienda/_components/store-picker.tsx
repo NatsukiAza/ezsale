@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   AlertTriangle,
   ChartColumn,
+  LogOut,
   Pencil,
   Plus,
   RotateCcw,
@@ -24,6 +26,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { PURGA_TIENDA_SOFT_DELETE_DIAS } from "@/lib/billing/plans";
+import { atrasadoWarningText } from "@/lib/billing/warning-copy";
+import { createClient } from "@/lib/supabase/client";
+import { clearGateCookieClient } from "@/lib/supabase/gate-cookie";
 import { cn } from "@/lib/utils";
 
 type Tienda = {
@@ -47,6 +52,10 @@ type StorePickerProps = {
   organizacionNombre: string;
   idOrganizacion: string;
   reportesMinYmd: string | null;
+  billing?: {
+    diasRestantes: number | null;
+    neverPaid: boolean;
+  } | null;
 };
 
 function diasRestantes(hasta: string | null): number | null {
@@ -62,9 +71,11 @@ export function StorePicker({
   organizacionNombre,
   idOrganizacion,
   reportesMinYmd,
+  billing = null,
 }: StorePickerProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [signingOut, setSigningOut] = useState(false);
   const [tab, setTab] = useState<"tiendas" | "reportes">("tiendas");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,6 +136,16 @@ export function StorePicker({
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function handleSignOut() {
+    const supabase = createClient();
+    setSigningOut(true);
+    if (supabase) await supabase.auth.signOut();
+    clearGateCookieClient();
+    setSigningOut(false);
+    router.push("/login");
+    router.refresh();
+  }
 
   async function selectStore(idTienda: string) {
     setError(null);
@@ -303,6 +324,13 @@ export function StorePicker({
       : `Sin plan asignado (cortesía): se aplican los límites del plan ${org.planNombre} (hasta ${maxLabel} tiendas).`
     : "";
 
+  const atrasadoCopy = billing
+    ? atrasadoWarningText({
+        neverPaid: billing.neverPaid,
+        diasRestantes: billing.diasRestantes,
+      })
+    : null;
+
   return (
     <TooltipProvider>
     <div className="bg-atmosphere min-h-dvh">
@@ -313,7 +341,19 @@ export function StorePicker({
         )}
       >
         <div className="mb-6">
-          <BrandMark href="/" />
+          <div className="flex items-center justify-between gap-3">
+            <BrandMark href="/" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={signingOut}
+              onClick={() => void handleSignOut()}
+            >
+              <LogOut />
+              {signingOut ? "Cerrando sesión…" : "Cerrar sesión"}
+            </Button>
+          </div>
           <h1 className="mt-8 font-display text-3xl tracking-tight text-foreground">
             {tab === "reportes" ? "Reportes" : "Elegí una tienda"}
           </h1>
@@ -359,6 +399,25 @@ export function StorePicker({
             </Tooltip>
           ) : null}
         </div>
+
+        {atrasadoCopy ? (
+          <div
+            className="mb-6 flex gap-3 rounded-lg border border-amber-500/40 bg-amber-500/10 p-4 text-sm"
+            role="status"
+          >
+            <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-700 dark:text-amber-400" />
+            <div className="min-w-0">
+              <p className="font-medium text-foreground">{atrasadoCopy.lead}</p>
+              <p className="mt-1 text-muted-foreground">{atrasadoCopy.plazo}</p>
+              <Link
+                href="/cuenta"
+                className="mt-2 inline-block font-medium text-foreground underline underline-offset-2"
+              >
+                {atrasadoCopy.cta}
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         {tab === "reportes" && isAdmin ? (
           <div className="rounded-lg border border-border bg-background/60">

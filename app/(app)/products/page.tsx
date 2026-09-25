@@ -1,5 +1,6 @@
 import { ProductsView } from "./_components/products-view";
 import { getCachedCatalog } from "@/lib/catalog/cached-catalog";
+import { getStockCantidades } from "@/lib/stock/cached-stock";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
 import { redirect } from "next/navigation";
 
@@ -13,14 +14,24 @@ function searchFold(s: string) {
 }
 
 export default async function ProductsPage() {
-  const { user, perfil } = await getPerfilTienda();
+  const { user, perfil, usaStock } = await getPerfilTienda();
   if (!user) redirect("/login");
   if (!perfil?.id_organizacion) redirect("/registro/completar");
 
   const idOrganizacion = perfil.id_organizacion;
+  const idTienda = perfil.id_tienda;
   const isAdmin = perfil.rol === "admin";
+  const canManageStock = perfil.rol === "admin" || perfil.rol === "manager";
 
-  const catalog = await getCachedCatalog(idOrganizacion);
+  const stockPromise =
+    usaStock && idTienda
+      ? getStockCantidades(idTienda)
+      : Promise.resolve(null);
+
+  const [catalog, stockByProductId] = await Promise.all([
+    getCachedCatalog(idOrganizacion),
+    stockPromise,
+  ]);
 
   const idToName = new Map(catalog.categorias.map((c) => [c.id, c.nombre]));
   const categorias = catalog.categorias.map((c) => ({
@@ -45,7 +56,11 @@ export default async function ProductsPage() {
   return (
     <ProductsView
       idOrganizacion={idOrganizacion}
+      idTienda={idTienda}
       isAdmin={isAdmin}
+      canManageStock={canManageStock}
+      initialUsaStock={usaStock}
+      initialStockByProductId={stockByProductId}
       initialCategorias={categorias}
       initialProductos={productos}
       initialLoadError={catalog.error}

@@ -6,10 +6,11 @@ import {
   CHECKOUT_PLANS,
   PLANS,
   type PlanId,
+  formatIntroPlanPrice,
   formatPlanPrice,
+  introDiscountNote,
 } from "@/lib/billing/plans";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { FormField } from "@/components/app/form-field";
@@ -25,7 +26,6 @@ export function RegisterForm({
 }: {
   initialPlan?: PlanId | null;
 }) {
-  const router = useRouter();
   const [nombreTienda, setNombreTienda] = useState("");
   const [nombre, setNombre] = useState("");
   const [apellido, setApellido] = useState("");
@@ -55,22 +55,7 @@ export function RegisterForm({
       setError(mapAuthErrorMessage(signErr.message));
       return false;
     }
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    const { data: perfilLogin } = user
-      ? await supabase
-          .from("perfiles")
-          .select("debe_cambiar_password")
-          .eq("id", user.id)
-          .maybeSingle()
-      : { data: null };
-    if (perfilLogin?.debe_cambiar_password === true) {
-      router.push("/auth/cambiar-password");
-    } else {
-      router.push("/seleccionar-tienda");
-    }
-    router.refresh();
+    window.location.assign("/seleccionar-tienda");
     return true;
   }
 
@@ -178,8 +163,7 @@ export function RegisterForm({
         return;
       }
 
-      router.push("/seleccionar-tienda");
-      router.refresh();
+      window.location.assign("/seleccionar-tienda");
       return;
     }
 
@@ -201,7 +185,8 @@ export function RegisterForm({
         <h1 className="text-h1">Registrar tienda</h1>
         <p className="text-body-sm text-muted-foreground">
           Se crea la tienda y tu usuario queda como administrador. Tenés 30
-          días de prueba.
+          días de prueba. En la primera suscripción, los 3 primeros meses van
+          al 50%.
         </p>
       </div>
 
@@ -234,9 +219,23 @@ export function RegisterForm({
                 )}
               >
                 <span className="font-medium">{p.name}</span>
-                <span className="ml-2 text-muted-foreground">
-                  {formatPlanPrice(id)}
-                </span>
+                {p.precioArs != null ? (
+                  <span className="ml-2">
+                    <span className="text-muted-foreground line-through">
+                      {formatPlanPrice(id)}
+                    </span>{" "}
+                    <span>{formatIntroPlanPrice(id)}</span>
+                  </span>
+                ) : (
+                  <span className="ml-2 text-muted-foreground">
+                    {formatPlanPrice(id)}
+                  </span>
+                )}
+                {p.precioArs != null ? (
+                  <span className="mt-0.5 block text-caption text-muted-foreground">
+                    {introDiscountNote(p.precioArs)}
+                  </span>
+                ) : null}
               </button>
             );
           })}

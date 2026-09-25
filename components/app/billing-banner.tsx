@@ -3,19 +3,26 @@
 import Link from "next/link";
 import { AlertTriangle, Clock } from "lucide-react";
 import type { AccesoPhase } from "@/lib/billing/access";
+import { atrasadoWarningText } from "@/lib/billing/warning-copy";
 
 type BillingBannerProps = {
   phase: AccesoPhase;
   diasRestantes: number | null;
+  neverPaid?: boolean;
 };
 
-export function BillingBanner({ phase, diasRestantes }: BillingBannerProps) {
+export function BillingBanner({
+  phase,
+  diasRestantes,
+  neverPaid = false,
+}: BillingBannerProps) {
   if (phase !== "atrasado" && phase !== "trial") return null;
 
   const days =
     diasRestantes != null && diasRestantes >= 0 ? diasRestantes : null;
 
   if (phase === "atrasado") {
+    const copy = atrasadoWarningText({ neverPaid, diasRestantes });
     return (
       <div
         role="status"
@@ -25,17 +32,14 @@ export function BillingBanner({ phase, diasRestantes }: BillingBannerProps) {
           <p className="flex items-start gap-2">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
             <span>
-              No pudimos cobrar tu suscripción.
-              {days != null
-                ? ` Tenés ${days} día${days === 1 ? "" : "s"} para regularizar el pago antes de que se bloquee el acceso.`
-                : " Regularizá el pago para no perder el acceso."}
+              {copy.lead} {copy.plazo}
             </span>
           </p>
           <Link
             href="/cuenta"
             className="shrink-0 font-medium underline underline-offset-2"
           >
-            Ir a Cuenta
+            {copy.cta}
           </Link>
         </div>
       </div>

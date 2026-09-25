@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app/app-shell";
 import { BillingBanner } from "@/components/app/billing-banner";
+import { BillingLockedShell } from "@/components/app/billing-locked-shell";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
 
 export default async function AppLayout({
@@ -8,8 +9,14 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { user, perfil, tiendaNombre, acceso, tieneTiendaActiva } =
-    await getPerfilTienda();
+  const {
+    user,
+    perfil,
+    tiendaNombre,
+    organizacionNombre,
+    acceso,
+    tieneTiendaActiva,
+  } = await getPerfilTienda();
 
   if (!user) {
     redirect("/login");
@@ -17,8 +24,21 @@ export default async function AppLayout({
   if (!perfil?.id_organizacion) {
     redirect("/registro/completar");
   }
-  if (!tieneTiendaActiva || !perfil.id_tienda) {
+
+  const billingBlocked = Boolean(acceso && !acceso.allowed);
+
+  // /cuenta es el paywall: no puede exigir tienda activa. Si no, admin sin
+  // cookie entra en loop cuenta → seleccionar-tienda → (middleware) cuenta.
+  if (!billingBlocked && (!tieneTiendaActiva || !perfil.id_tienda)) {
     redirect("/seleccionar-tienda");
+  }
+
+  if (billingBlocked) {
+    return (
+      <BillingLockedShell orgName={organizacionNombre ?? tiendaNombre}>
+        {children}
+      </BillingLockedShell>
+    );
   }
 
   const displayName =
@@ -42,6 +62,7 @@ export default async function AppLayout({
           <BillingBanner
             phase={acceso.phase}
             diasRestantes={acceso.diasRestantes}
+            neverPaid={acceso.neverPaid}
           />
         ) : null
       }

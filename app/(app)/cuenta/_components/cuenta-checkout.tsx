@@ -7,7 +7,9 @@ import {
   CHECKOUT_PLANS,
   PLANS,
   type PlanId,
+  formatIntroPlanPrice,
   formatPlanPrice,
+  introDiscountNote,
 } from "@/lib/billing/plans";
 import { clearGateCookieClient } from "@/lib/supabase/gate-cookie";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,12 +19,14 @@ type CuentaCheckoutProps = {
   currentPlan: PlanId | null;
   isAdmin: boolean;
   cobroExento: boolean;
+  introEligible: boolean;
 };
 
 export function CuentaCheckout({
   currentPlan,
   isAdmin,
   cobroExento,
+  introEligible,
 }: CuentaCheckoutProps) {
   const [selected, setSelected] = useState<PlanId>(
     currentPlan && CHECKOUT_PLANS.includes(currentPlan)
@@ -99,9 +103,25 @@ export function CuentaCheckout({
               )}
             >
               <div className="font-medium">{plan.name}</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {formatPlanPrice(id)}
-              </div>
+              {introEligible && plan.precioArs != null ? (
+                <div className="mt-1 space-y-0.5">
+                  <div className="text-sm">
+                    <span className="text-muted-foreground line-through">
+                      {formatPlanPrice(id)}
+                    </span>{" "}
+                    <span className="font-medium">
+                      {formatIntroPlanPrice(id)}
+                    </span>
+                  </div>
+                  <p className="text-caption text-muted-foreground">
+                    {introDiscountNote(plan.precioArs)}
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-1 text-sm text-muted-foreground">
+                  {formatPlanPrice(id)}
+                </div>
+              )}
             </button>
           );
         })}

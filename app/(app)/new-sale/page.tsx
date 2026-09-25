@@ -1,5 +1,6 @@
 import { NewSaleView } from "@/app/(app)/new-sale/_components/new-sale-view";
 import { getCachedCatalog } from "@/lib/catalog/cached-catalog";
+import { getStockCantidades } from "@/lib/stock/cached-stock";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
 import { redirect } from "next/navigation";
 
@@ -13,7 +14,7 @@ function searchFold(s: string) {
 }
 
 export default async function NewSalePage() {
-  const { supabase, user, perfil } = await getPerfilTienda();
+  const { supabase, user, perfil, usaStock } = await getPerfilTienda();
   if (!supabase || !user) redirect("/login");
   if (!perfil?.id_organizacion) redirect("/registro/completar");
   if (!perfil.id_tienda) redirect("/seleccionar-tienda");
@@ -21,10 +22,15 @@ export default async function NewSalePage() {
   const idOrganizacion = perfil.id_organizacion;
   const idTienda = perfil.id_tienda;
 
-  const [catalog, mediosRes, ventasRes] = await Promise.all([
+  const stockPromise = usaStock
+    ? getStockCantidades(idTienda)
+    : Promise.resolve(null);
+
+  const [catalog, mediosRes, ventasRes, stockByProductId] = await Promise.all([
     getCachedCatalog(idOrganizacion),
     supabase.from("medios_pago").select("id, nombre").order("nombre"),
     supabase.rpc("unidades_vendidas_por_tienda", { p_id_tienda: idTienda }),
+    stockPromise,
   ]);
 
   const loadError =
@@ -64,6 +70,7 @@ export default async function NewSalePage() {
       }))}
       mediosPago={(mediosRes.data ?? []) as { id: string; nombre: string }[]}
       productos={productos}
+      stockByProductId={stockByProductId}
       loadError={loadError}
     />
   );

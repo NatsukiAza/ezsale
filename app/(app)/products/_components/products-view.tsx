@@ -7,8 +7,11 @@ import {
   useMemo,
   useState,
 } from "react";
+import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
+  ArrowLeftRight,
+  History,
   MoreHorizontal,
   Package,
   Pencil,
@@ -36,6 +39,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import {
   Tabs,
   TabsContent,
@@ -57,6 +62,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { ProductoFormDialog } from "./producto-form-dialog";
 import { CategoriaFormDialog } from "./categoria-form-dialog";
+import { StockCell } from "./stock-cell";
+
+const StockTransferDialog = dynamic(
+  () =>
+    import("./stock-transfer-dialog").then((m) => m.StockTransferDialog),
+);
+const StockKardex = dynamic(() =>
+  import("./stock-kardex").then((m) => m.StockKardex),
+);
 
 type CategoriaListItem = {
   id: string;
@@ -83,7 +97,7 @@ function searchFold(s: string) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-type ActiveTab = "productos" | "categorias";
+type ActiveTab = "productos" | "categorias" | "movimientos";
 type ModalKind = "producto" | "categoria";
 type DeleteTarget =
   | { kind: "producto"; item: ProductoListItem }
@@ -126,13 +140,21 @@ function categoriaNombreFromJoin(row: { categorias: unknown }): string | null {
 
 export function ProductsView({
   idOrganizacion,
+  idTienda,
   isAdmin,
+  canManageStock,
+  initialUsaStock,
+  initialStockByProductId,
   initialCategorias,
   initialProductos,
   initialLoadError = null,
 }: {
   idOrganizacion: string;
+  idTienda: string;
   isAdmin: boolean;
+  canManageStock: boolean;
+  initialUsaStock: boolean;
+  initialStockByProductId: Record<string, number> | null;
   initialCategorias: CategoriaListItem[];
   initialProductos: ProductoListItem[];
   initialLoadError?: string | null;
@@ -145,6 +167,14 @@ export function ProductsView({
   const [loadError, setLoadError] = useState<string | null>(initialLoadError);
   const [loadingList, setLoadingList] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("productos");
+  const [usaStock, setUsaStock] = useState(initialUsaStock);
+  const [stockByProductId, setStockByProductId] = useState<
+    Record<string, number>
+  >(() => initialStockByProductId ?? {});
+  const [togglingStock, setTogglingStock] = useState(false);
+  const [disableStockOpen, setDisableStockOpen] = useState(false);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [kardexProductoId, setKardexProductoId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterCategoriaId, setFilterCategoriaId] = useState<string | null>(
     null,
@@ -289,28 +319,41 @@ export function ProductsView({
     setLoadingList(true);
     const oid = idOrganizacion;
 
-    const [{ data: cats, error: catErr }, { data: prods, error: prodErr }] =
-      await Promise.all([
-        supabase
-          .from("categorias")
-          .select("id, nombre, id_padre")
-          .eq("id_organizacion", oid)
-          .is("eliminado_en", null)
-          .order("nombre"),
-        supabase
-          .from("productos")
-          .select(
-            "id, id_categoria, nombre, descripcion, precio_actual, categorias ( nombre )",
-          )
-          .eq("id_organizacion", oid)
-          .is("eliminado_en", null)
-          .order("nombre"),
-      ]);
+    const stockPromise = usaStock
+      ? supabase
+          .from("stock_tienda")
+          .select("id_producto, cantidad")
+          .eq("id_tienda", idTienda)
+      : Promise.resolve({ data: null, error: null });
+
+    const [
+      { data: cats, error: catErr },
+      { data: prods, error: prodErr },
+      stockRes,
+    ] = await Promise.all([
+      supabase
+        .from("categorias")
+        .select("id, nombre, id_padre")
+        .eq("id_organizacion", oid)
+        .is("eliminado_en", null)
+        .order("nombre"),
+      supabase
+        .from("productos")
+        .select(
+          "id, id_categoria, nombre, descripcion, precio_actual, categorias ( nombre )",
+        )
+        .eq("id_organizacion", oid)
+        .is("eliminado_en", null)
+        .order("nombre"),
+      stockPromise,
+    ]);
 
     if (catErr) {
       setLoadError(catErr.message);
     } else if (prodErr) {
       setLoadError(prodErr.message);
+    } else if (usaStock && stockRes.error) {
+      setLoadError(stockRes.error.message);
     } else {
       setLoadError(null);
       const catRows = (cats ?? []) as {
@@ -348,9 +391,73 @@ export function ProductsView({
           };
         }),
       );
+      if (usaStock) {
+        const next: Record<string, number> = {};
+        const stockRows = (stockRes.data ?? []) as Array<{
+          id_producto: string;
+          cantidad: number | string;
+        }>;
+        for (const row of stockRows) {
+          next[row.id_producto] = Number(row.cantidad);
+        }
+        setStockByProductId(next);
+      }
     }
     setLoadingList(false);
-  }, [idOrganizacion]);
+  }, [idOrganizacion, idTienda, usaStock]);
+
+  async function enableStock() {
+    if (togglingStock) return;
+    const supabase = createClient();
+    if (!supabase) {
+      toast.error("Supabase no está configurado.");
+      return;
+    }
+    setTogglingStock(true);
+    const { error } = await supabase.rpc("set_organizacion_usa_stock", {
+      p_usa: true,
+    });
+    setTogglingStock(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setUsaStock(true);
+  }
+
+  async function disableStock() {
+    if (togglingStock) return;
+    const supabase = createClient();
+    if (!supabase) {
+      toast.error("Supabase no está configurado.");
+      return;
+    }
+    setTogglingStock(true);
+    const { error } = await supabase.rpc("set_organizacion_usa_stock", {
+      p_usa: false,
+    });
+    setTogglingStock(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    setUsaStock(false);
+    setDisableStockOpen(false);
+    if (activeTab === "movimientos") setActiveTab("productos");
+  }
+
+  function onStockCommitted(productId: string, next: number) {
+    setStockByProductId((prev) => ({ ...prev, [productId]: next }));
+  }
+
+  function onTransferred(updates: Record<string, number>) {
+    setStockByProductId((prev) => ({ ...prev, ...updates }));
+  }
+
+  function openKardexForProduct(productId: string) {
+    setKardexProductoId(productId);
+    setActiveTab("movimientos");
+  }
 
   useEffect(() => {
     setCurrentProductPage(1);
@@ -418,9 +525,12 @@ export function ProductsView({
     setModalOpen(false);
     setSearchQuery("");
     setCurrentProductPage(1);
-    if (tab === "categorias") {
+    if (tab === "categorias" || tab === "movimientos") {
       setFilterCategoriaId(null);
       exitPriceEditMode();
+    }
+    if (tab !== "movimientos") {
+      setKardexProductoId(null);
     }
   }
 
@@ -674,6 +784,33 @@ export function ProductsView({
         description="Administrá el catálogo y organizá tus categorías."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            {canManageStock ? (
+              <div className="mr-1 flex items-center gap-2">
+                <Switch
+                  id="usa-stock"
+                  checked={usaStock}
+                  disabled={togglingStock}
+                  onCheckedChange={(on) => {
+                    if (on) void enableStock();
+                    else setDisableStockOpen(true);
+                  }}
+                  aria-label="Controlar stock"
+                />
+                <Label htmlFor="usa-stock" className="text-sm font-medium">
+                  Controlar stock
+                </Label>
+              </div>
+            ) : null}
+            {usaStock && canManageStock && activeTab === "productos" ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setTransferOpen(true)}
+              >
+                <ArrowLeftRight />
+                Traspasar
+              </Button>
+            ) : null}
             {isAdmin && activeTab === "productos" ? (
               priceEditMode ? (
                 <Button
@@ -696,7 +833,7 @@ export function ProductsView({
                 </Button>
               )
             ) : null}
-            {!priceEditMode ? (
+            {!priceEditMode && activeTab !== "movimientos" ? (
               <Button onClick={openCreateModal}>
                 <Plus />
                 {nuevoLabel}
@@ -717,6 +854,9 @@ export function ProductsView({
           <TabsList>
             <TabsTrigger value="productos">Productos</TabsTrigger>
             <TabsTrigger value="categorias">Categorías</TabsTrigger>
+            {usaStock && canManageStock ? (
+              <TabsTrigger value="movimientos">Movimientos</TabsTrigger>
+            ) : null}
           </TabsList>
 
           <TabsContent value="productos" className="space-y-4 pt-4">
@@ -812,6 +952,11 @@ export function ProductsView({
                       <DataTableHead className="text-right">
                         Precio
                       </DataTableHead>
+                      {usaStock ? (
+                        <DataTableHead className="text-right">
+                          Stock
+                        </DataTableHead>
+                      ) : null}
                       <DataTableHead className="w-12 text-right">
                         <span className="sr-only">Acciones</span>
                       </DataTableHead>
@@ -855,6 +1000,18 @@ export function ProductsView({
                             <Money value={p.precio_actual} />
                           )}
                         </DataTableCell>
+                        {usaStock ? (
+                          <DataTableCell className="text-right">
+                            <StockCell
+                              productId={p.id}
+                              productName={p.nombre}
+                              idTienda={idTienda}
+                              cantidad={stockByProductId[p.id]}
+                              canEdit={canManageStock && !priceEditMode}
+                              onCommitted={onStockCommitted}
+                            />
+                          </DataTableCell>
+                        ) : null}
                         <DataTableCell className="text-right">
                           {isAdmin && !priceEditMode ? (
                             <DropdownMenu>
@@ -875,6 +1032,14 @@ export function ProductsView({
                                   <Pencil />
                                   Editar
                                 </DropdownMenuItem>
+                                {usaStock && canManageStock ? (
+                                  <DropdownMenuItem
+                                    onClick={() => openKardexForProduct(p.id)}
+                                  >
+                                    <History />
+                                    Movimientos
+                                  </DropdownMenuItem>
+                                ) : null}
                                 <DropdownMenuItem
                                   variant="destructive"
                                   onClick={() =>
@@ -886,6 +1051,16 @@ export function ProductsView({
                                 </DropdownMenuItem>
                               </DropdownMenuContent>
                             </DropdownMenu>
+                          ) : usaStock && canManageStock && !priceEditMode ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label={`Movimientos de ${p.nombre}`}
+                              onClick={() => openKardexForProduct(p.id)}
+                            >
+                              <History />
+                            </Button>
                           ) : null}
                         </DataTableCell>
                       </DataTableRow>
@@ -1020,6 +1195,21 @@ export function ProductsView({
               </DataTable>
             )}
           </TabsContent>
+
+          {usaStock && canManageStock && activeTab === "movimientos" ? (
+            <TabsContent value="movimientos" className="space-y-4 pt-4">
+              <StockKardex
+                key={kardexProductoId ?? "all"}
+                idTienda={idTienda}
+                isAdmin={isAdmin}
+                productos={productos.map((p) => ({
+                  id: p.id,
+                  nombre: p.nombre,
+                }))}
+                initialProductoId={kardexProductoId}
+              />
+            </TabsContent>
+          ) : null}
         </Tabs>
       </div>
 
@@ -1059,6 +1249,29 @@ export function ProductsView({
         saving={saving}
         canSubmit={canSubmitCategoria}
         onSubmit={handleSubmitCategoria}
+      />
+
+      {usaStock && canManageStock && transferOpen ? (
+        <StockTransferDialog
+          open={transferOpen}
+          onOpenChange={setTransferOpen}
+          idTiendaOrigen={idTienda}
+          productos={productos.map((p) => ({ id: p.id, nombre: p.nombre }))}
+          stockByProductId={stockByProductId}
+          onTransferred={onTransferred}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        open={disableStockOpen}
+        onOpenChange={(open) => {
+          if (!open && !togglingStock) setDisableStockOpen(false);
+        }}
+        title="Dejar de controlar stock"
+        description="Vas a dejar de descontar stock en las ventas. Los números y el historial quedan por si lo prendés de nuevo."
+        confirmLabel="Desactivar"
+        loading={togglingStock}
+        onConfirm={disableStock}
       />
 
       <ConfirmDialog
