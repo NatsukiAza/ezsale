@@ -7,9 +7,9 @@ import { SimpleMarkdown } from "@/lib/legal/simple-md";
 import { TERMINOS_UPDATED_LABEL } from "@/lib/legal/terminos";
 
 export const metadata: Metadata = {
-  title: "Términos y Condiciones — EZSale",
+  title: "Términos y Condiciones — Toque",
   description:
-    "Términos y condiciones de uso del software EZSale (SaaS) para gestión de ventas.",
+    "Términos y condiciones de uso del software Toque (SaaS) para gestión de ventas.",
 };
 
 async function loadTerminosMarkdown() {

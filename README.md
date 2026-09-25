@@ -1,4 +1,4 @@
-# EZSale
+# Toque
 
 Sistema de punto de venta multi-tienda: ventas, productos, reportes y equipo.
 

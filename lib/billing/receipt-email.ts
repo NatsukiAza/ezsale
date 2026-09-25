@@ -10,7 +10,7 @@ function getResend() {
 
 function getFromEmail() {
   return (
-    process.env.EMAIL_FROM?.trim() || "EZSale <onboarding@resend.dev>"
+    process.env.EMAIL_FROM?.trim() || "Toque <onboarding@resend.dev>"
   );
 }
 
@@ -44,11 +44,11 @@ export async function sendSubscriptionReceiptEmail(
   const hastaLabel = formatLongDate(input.pagadoHasta);
   const paidLabel = formatLongDate(input.paidAt);
 
-  const subject = `Comprobante de pago — EZSale ${planName}`;
+  const subject = `Comprobante de pago — Toque ${planName}`;
   const text = [
     `Hola,`,
     ``,
-    `Registramos el pago de la suscripción de EZSale para la tienda "${input.tiendaNombre}".`,
+    `Registramos el pago de la suscripción de Toque para la tienda "${input.tiendaNombre}".`,
     ``,
     `Plan: ${planName}`,
     `Monto: ${montoLabel}`,
@@ -58,12 +58,12 @@ export async function sendSubscriptionReceiptEmail(
     ``,
     `Este es un comprobante de pago de suscripción, no una factura fiscal.`,
     ``,
-    `— Equipo EZSale`,
+    `— Equipo Toque`,
   ].join("\n");
 
   const html = `
     <p>Hola,</p>
-    <p>Registramos el pago de la suscripción de <strong>EZSale</strong> para la tienda <strong>${escapeHtml(input.tiendaNombre)}</strong>.</p>
+    <p>Registramos el pago de la suscripción de <strong>Toque</strong> para la tienda <strong>${escapeHtml(input.tiendaNombre)}</strong>.</p>
     <ul>
       <li><strong>Plan:</strong> ${escapeHtml(planName)}</li>
       <li><strong>Monto:</strong> ${escapeHtml(montoLabel)}</li>
@@ -72,7 +72,7 @@ export async function sendSubscriptionReceiptEmail(
       <li><strong>ID de pago (Mercado Pago):</strong> ${escapeHtml(input.paymentId)}</li>
     </ul>
     <p style="color:#666;font-size:14px">Este es un comprobante de pago de suscripción, no una factura fiscal.</p>
-    <p>— Equipo EZSale</p>
+    <p>— Equipo Toque</p>
   `;
 
   try {

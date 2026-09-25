@@ -1,0 +1,31 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Toque  Sello">
+  <title>Toque  Sello</title>
+  <defs>
+    <line id="toque-ray-a" x1="50" y1="12" x2="50" y2="19" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    <line id="toque-ray-b" x1="50" y1="15" x2="50" y2="19" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" opacity="0.5"/>
+  </defs>
+  <!-- Ráfaga radial: el sello de caja -->
+  <g>
+    <use href="#toque-ray-a" transform="rotate(0 50 50)"/><use href="#toque-ray-b" transform="rotate(15 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(30 50 50)"/><use href="#toque-ray-b" transform="rotate(45 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(60 50 50)"/><use href="#toque-ray-b" transform="rotate(75 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(90 50 50)"/><use href="#toque-ray-b" transform="rotate(105 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(120 50 50)"/><use href="#toque-ray-b" transform="rotate(135 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(150 50 50)"/><use href="#toque-ray-b" transform="rotate(165 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(180 50 50)"/><use href="#toque-ray-b" transform="rotate(195 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(210 50 50)"/><use href="#toque-ray-b" transform="rotate(225 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(240 50 50)"/><use href="#toque-ray-b" transform="rotate(255 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(270 50 50)"/><use href="#toque-ray-b" transform="rotate(285 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(300 50 50)"/><use href="#toque-ray-b" transform="rotate(315 50 50)"/>
+    <use href="#toque-ray-a" transform="rotate(330 50 50)"/><use href="#toque-ray-b" transform="rotate(345 50 50)"/>
+  </g>
+  <!-- Aro interior -->
+  <circle cx="50" cy="50" r="26" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.35"/>
+  <!-- La T -->
+  <g fill="none" stroke="currentColor" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M 37 40 H 63"/>
+    <path d="M 50 40 V 59"/>
+  </g>
+  <!-- El toque -->
+  <circle cx="50" cy="67" r="4.5" fill="var(--toque-accent, currentColor)"/>
+</svg>

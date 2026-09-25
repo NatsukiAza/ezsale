@@ -175,7 +175,7 @@ export async function POST(request: Request) {
   try {
     const created = await preApproval.create({
       body: {
-        reason: `EZSale ${planDef.name} - ${orgNombre}`,
+        reason: `Toque ${planDef.name} - ${orgNombre}`,
         external_reference: idOrg,
         payer_email: payerEmail,
         back_url: backUrl,

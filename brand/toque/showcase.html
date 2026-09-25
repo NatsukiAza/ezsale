@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toque — Logo Design Exploration v2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;500;600&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            background: #FAFAFA;
+            color: #1A1A1A;
+            overflow-x: hidden;
+        }
+
+        .font-mono { font-family: 'JetBrains Mono', 'Courier New', monospace; }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+            pointer-events: none;
+            z-index: 9999;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        .logo-card { transition: all 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+        .logo-card:hover { transform: translateY(-4px); }
+
+        .logo-canvas { position: relative; transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+
+        .logo-aura {
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(circle, rgba(180,70,47,0.18) 0%, transparent 70%);
+            border-radius: 50%;
+            transform: scale(0.5);
+            opacity: 0;
+            transition: all 1s cubic-bezier(0.16, 1, 0.3, 1);
+            filter: blur(40px);
+            pointer-events: none;
+        }
+        .logo-card:hover .logo-aura { transform: scale(1); opacity: 1; }
+
+        .divider-line {
+            width: 0;
+            height: 1px;
+            background: #1A1A1A;
+            opacity: 0.2;
+            transition: width 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        .logo-card:hover .divider-line { width: 100%; }
+
+        .tracking-ultra-wide { letter-spacing: 0.2em; }
+        .text-balance { text-wrap: balance; }
+
+        .logo-card.selected { outline: 1px solid #b4462f; outline-offset: 16px; }
+
+        /* Modos de color */
+        .mode-mono { color: #1A1A1A; --toque-accent: currentColor; }
+        .mode-clay { color: #b4462f; --toque-accent: currentColor; }
+        .mode-duo  { color: #21201d; --toque-accent: #b4462f; }
+
+        .mode-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            padding: 8px 16px;
+            border: 1px solid rgba(0,0,0,0.12);
+            border-radius: 999px;
+            background: transparent;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: all 0.3s ease;
+        }
+        .mode-btn:hover { opacity: 0.9; }
+        .mode-btn.active { opacity: 1; border-color: #b4462f; color: #b4462f; }
+    </style>
+</head>
+<body>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState } = React;
+        const svgClass = "w-full h-full";
+        const ACC = "var(--toque-accent, currentColor)";
+
+        const LogoHuella = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <g fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round">
+                    <circle cx="50" cy="50" r="10" strokeDasharray="46 16.83" transform="rotate(-100 50 50)"/>
+                    <circle cx="50" cy="50" r="17" strokeDasharray="74 32.8" transform="rotate(30 50 50)"/>
+                    <circle cx="50" cy="50" r="24" strokeDasharray="58 18 56 18.8" transform="rotate(-50 50 50)"/>
+                    <circle cx="50" cy="50" r="31" strokeDasharray="118 22 32 22.8" transform="rotate(140 50 50)" opacity="0.65"/>
+                </g>
+                <circle cx="50" cy="50" r="4.5" fill={ACC}/>
+            </svg>
+        );
+
+        const LogoOndas = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <g fill="currentColor">
+                    <circle cx="52" cy="60" r="3"/><circle cx="48.49" cy="51.51" r="3"/><circle cx="40" cy="48" r="3"/><circle cx="31.51" cy="51.51" r="3"/>
+                    <circle cx="28" cy="60" r="3"/><circle cx="31.51" cy="68.49" r="3"/><circle cx="40" cy="72" r="3"/><circle cx="48.49" cy="68.49" r="3"/>
+                    <circle cx="62" cy="60" r="2.5"/><circle cx="59.05" cy="49" r="2.5"/><circle cx="51" cy="40.95" r="2.5"/><circle cx="40" cy="38" r="2.5"/>
+                    <circle cx="29" cy="40.95" r="2.5"/><circle cx="20.95" cy="49" r="2.5"/><circle cx="59.05" cy="71" r="2.5"/><circle cx="51" cy="79.05" r="2.5"/>
+                    <g opacity="0.75">
+                        <circle cx="72" cy="60" r="2"/><circle cx="69.57" cy="47.75" r="2"/><circle cx="62.63" cy="37.37" r="2"/><circle cx="52.25" cy="30.43" r="2"/>
+                        <circle cx="40" cy="28" r="2"/><circle cx="27.75" cy="30.43" r="2"/><circle cx="17.37" cy="37.37" r="2"/><circle cx="69.57" cy="72.25" r="2"/><circle cx="62.63" cy="82.63" r="2"/>
+                    </g>
+                    <g opacity="0.4">
+                        <circle cx="82" cy="60" r="1.6"/><circle cx="76.37" cy="39" r="1.6"/><circle cx="61" cy="23.63" r="1.6"/><circle cx="40" cy="18" r="1.6"/><circle cx="19" cy="23.63" r="1.6"/><circle cx="80.57" cy="70.87" r="1.6"/>
+                    </g>
+                </g>
+                <circle cx="40" cy="60" r="6.5" fill={ACC}/>
+            </svg>
+        );
+
+        const LogoTMatriz = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <g fill="currentColor" opacity="0.18">
+                    {[34, 48, 62, 76].map((y) => [20, 34, 62, 76].map((x) => <circle key={x + "-" + y} cx={x} cy={y} r="1.8"/>))}
+                </g>
+                <g fill="currentColor">
+                    {[15, 29, 43, 57, 71].map((x) => <rect key={"t" + x} x={x} y="15" width="10" height="10" rx="3"/>)}
+                    {[29, 43, 57].map((y) => <rect key={"s" + y} x="43" y={y} width="10" height="10" rx="3"/>)}
+                </g>
+                <circle cx="48" cy="76" r="5.5" fill={ACC}/>
+            </svg>
+        );
+
+        const LogoTicket = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <path d="M 30 18 H 70 A 6 6 0 0 1 76 24 V 74 L 69.5 80 L 63 74 L 56.5 80 L 50 74 L 43.5 80 L 37 74 L 30.5 80 L 24 74 V 24 A 6 6 0 0 1 30 18 Z"
+                      fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round"/>
+                <g stroke="currentColor" strokeWidth="3" strokeLinecap="round">
+                    <line x1="34" y1="33" x2="54" y2="33"/>
+                    <line x1="34" y1="43" x2="50" y2="43"/>
+                    <line x1="34" y1="53" x2="58" y2="53"/>
+                    <line x1="34" y1="65" x2="66" y2="65" strokeWidth="4"/>
+                </g>
+                <circle cx="64" cy="41" r="6" fill={ACC}/>
+            </svg>
+        );
+
+        const LogoEco = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <g fill="none" stroke="currentColor" strokeLinecap="round">
+                    <path d="M 51.45 68.14 A 16 16 0 0 0 31.86 48.55" strokeWidth="4"/>
+                    <path d="M 61.11 70.73 A 26 26 0 0 0 29.27 38.89" strokeWidth="3.5" opacity="0.75"/>
+                    <path d="M 70.77 73.32 A 36 36 0 0 0 26.68 29.23" strokeWidth="3" opacity="0.5"/>
+                </g>
+                <g fill="currentColor" opacity="0.55">
+                    <circle cx="77.35" cy="48.95" r="2.5"/>
+                    <circle cx="58" cy="25.9" r="2.5"/>
+                    <circle cx="32.16" cy="20.17" r="2"/>
+                </g>
+                <circle cx="36" cy="64" r="7" fill={ACC}/>
+            </svg>
+        );
+
+        const LogoMoneda = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <defs>
+                    <mask id="toque-moneda-mask">
+                        <rect width="100" height="100" fill="black"/>
+                        <circle cx="50" cy="50" r="34" fill="white"/>
+                        <circle cx="35" cy="61" r="4.5" fill="black"/>
+                        <circle cx="50" cy="50" r="6" fill="black"/>
+                        <circle cx="66" cy="38" r="8" fill="black"/>
+                    </mask>
+                </defs>
+                <circle cx="50" cy="50" r="41" fill="none" stroke={ACC} strokeWidth="2.5" strokeDasharray="0.5 5" strokeLinecap="round" opacity="0.7"/>
+                <circle cx="50" cy="50" r="34" fill="currentColor" mask="url(#toque-moneda-mask)"/>
+            </svg>
+        );
+
+        const LogoCamino = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <circle cx="76" cy="32" r="15" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.4"/>
+                <circle cx="76" cy="32" r="21" fill="none" stroke="currentColor" strokeWidth="2" strokeDasharray="0.5 6" strokeLinecap="round" opacity="0.35"/>
+                <path d="M 24 68 C 40 68, 34 50, 50 50" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeDasharray="0.5 7"/>
+                <path d="M 50 50 C 66 50, 60 32, 76 32" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round"/>
+                <g fill="currentColor">
+                    <circle cx="24" cy="68" r="5"/>
+                    <circle cx="50" cy="50" r="6.5"/>
+                </g>
+                <circle cx="76" cy="32" r="8.5" fill={ACC}/>
+            </svg>
+        );
+
+        const LogoSello = () => (
+            <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" className={svgClass}>
+                <g stroke="currentColor" strokeLinecap="round">
+                    {Array.from({ length: 24 }).map((_, i) => (
+                        i % 2 === 0
+                            ? <line key={i} x1="50" y1="12" x2="50" y2="19" strokeWidth="3" transform={"rotate(" + (i * 15) + " 50 50)"}/>
+                            : <line key={i} x1="50" y1="15" x2="50" y2="19" strokeWidth="2.5" opacity="0.5" transform={"rotate(" + (i * 15) + " 50 50)"}/>
+                    ))}
+                </g>
+                <circle cx="50" cy="50" r="26" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.35"/>
+                <g fill="none" stroke="currentColor" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M 37 40 H 63"/>
+                    <path d="M 50 40 V 59"/>
+                </g>
+                <circle cx="50" cy="67" r="4.5" fill={ACC}/>
+            </svg>
+        );
+
+        const logos = [
+            { title: "Huella", subtitle: "Line system · anillos segmentados", file: "svg/01-huella.svg", Component: LogoHuella,
+              philosophy: "La huella que deja el dedo en la pantalla. Cuatro anillos partidos, cada uno con su propio ritmo, y el toque en el centro. Tiene textura sin dejar de ser una sola forma." },
+            { title: "Ondas", subtitle: "Dot matrix · expansión", file: "svg/02-ondas.svg", Component: LogoOndas,
+              philosophy: "El toque como origen: la matriz de puntos se expande desde abajo a la izquierda hacia arriba y a la derecha, y se va apagando. Es el crecimiento del local, no una diana." },
+            { title: "T Matriz", subtitle: "Dot matrix letter · capas", file: "svg/03-t-matriz.svg", Component: LogoTMatriz,
+              philosophy: "La T de Toque construida en módulos, como botones de pantalla, sobre una grilla tenue. El último módulo es un punto: el tap que cierra la venta." },
+            { title: "Ticket", subtitle: "Lines + geometry · el objeto", file: "svg/04-ticket.svg", Component: LogoTicket,
+              philosophy: "El ticket de caja, con sus líneas de venta y el total abajo. El toque marca la línea que se acaba de cobrar. Es el único que dice 'caja' sin explicar nada." },
+            { title: "Eco", subtitle: "Arcs + satellites · dirección", file: "svg/05-eco.svg", Component: LogoEco,
+              philosophy: "Tres arcos que salen del toque, cada vez más livianos, con satélites que se escapan. Movimiento hacia adelante: la venta que sale del mostrador." },
+            { title: "Moneda", subtitle: "Punched circle · negativo", file: "svg/06-moneda.svg", Component: LogoMoneda,
+              philosophy: "La caja del día es una moneda maciza; los tres toques están perforados, subiendo. El canto punteado la hace moneda, no botón. Fuerte en chico, fuerte en grande." },
+            { title: "Camino", subtitle: "Node network · narrativa", file: "svg/07-camino.svg", Component: LogoCamino,
+              philosophy: "Producto → medio de pago → listo. El primer tramo va punteado (pendiente), el segundo sólido (cobrado), y el último toque tiene su eco. Cuenta el producto entero." },
+            { title: "Sello", subtitle: "Radial burst + letter · confianza", file: "svg/08-sello.svg", Component: LogoSello,
+              philosophy: "Una ráfaga radial como sello de caja, con la T adentro y el toque debajo. El más institucional: el que da confianza al dueño que deja el local." },
+        ];
+
+        const modes = [
+            { id: "mono", label: "Mono" },
+            { id: "clay", label: "Clay" },
+            { id: "duo",  label: "Dúo" },
+        ];
+
+        const LogoShowcase = () => {
+            const [selected, setSelected] = useState(0);
+            const [mode, setMode] = useState("duo");
+            const Active = logos[selected].Component;
+            const sizes = [16, 24, 32, 48, 64];
+            const modeClass = "mode-" + mode;
+
+            return (
+                <div className="min-h-screen flex flex-col items-center py-20 px-6">
+
+                    <div className="text-center mb-14 max-w-3xl">
+                        <h1 className="text-6xl md:text-7xl font-extralight tracking-wider mb-6">Toque</h1>
+                        <p className="font-mono text-xs opacity-40 uppercase tracking-ultra-wide mb-8">
+                            Caja de mostrador · tres toques · exploración v2
+                        </p>
+                        <div className="w-12 h-[1px] bg-[#1A1A1A] mx-auto opacity-30"></div>
+                        <p className="mt-8 text-sm font-light opacity-60 max-w-xl mx-auto leading-relaxed">
+                            Click en una marca para verla en tamaños de web y sobre el clay del producto.
+                            Cambiá el modo de color para ver el "toque" como acento.
+                        </p>
+                    </div>
+
+                    <div className="flex gap-2 mb-20">
+                        {modes.map((m) => (
+                            <button key={m.id} className={"mode-btn" + (mode === m.id ? " active" : "")} onClick={() => setMode(m.id)}>
+                                {m.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    <div className={"max-w-7xl w-full grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-16 mb-32 " + modeClass}>
+                        {logos.map((logo, index) => (
+                            <div
+                                key={index}
+                                className={"flex flex-col items-center logo-card cursor-pointer" + (selected === index ? " selected" : "")}
+                                onClick={() => setSelected(index)}
+                            >
+                                <div className="w-64 h-64 mb-10 flex items-center justify-center relative">
+                                    <div className="logo-aura"></div>
+                                    <div className="w-36 h-36 relative z-10 logo-canvas">
+                                        <logo.Component />
+                                    </div>
+                                </div>
+                                <div className="text-center w-full px-4 text-[#1A1A1A]">
+                                    <h2 className="text-xl font-medium tracking-wider mb-2 uppercase">{logo.title}</h2>
+                                    <h3 className="text-xs font-mono opacity-50 tracking-widest mb-6">{logo.subtitle}</h3>
+                                    <p className="text-sm leading-relaxed opacity-70 text-left font-light text-balance">{logo.philosophy}</p>
+                                    <a href={logo.file} download
+                                       className="inline-block mt-4 font-mono text-[10px] uppercase tracking-widest opacity-40 hover:opacity-80"
+                                       onClick={(e) => e.stopPropagation()}>
+                                        Descargar SVG
+                                    </a>
+                                </div>
+                                <div className="divider-line mt-8 mx-auto"></div>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="max-w-4xl w-full mb-32">
+                        <p className="font-mono text-xs opacity-40 uppercase tracking-ultra-wide mb-10 text-center">
+                            Aplicación web · {logos[selected].title}
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className={"bg-white border border-black/5 rounded-2xl p-8 flex flex-col items-center justify-center min-h-[220px] " + modeClass}>
+                                <p className="font-mono text-[10px] uppercase tracking-widest opacity-40 mb-8 text-[#1A1A1A]">Favicon / sidebar</p>
+                                <div className="flex items-end gap-6">
+                                    {sizes.map((s) => (
+                                        <div key={s} className="flex flex-col items-center gap-2">
+                                            <div style={{ width: s, height: s }}><Active /></div>
+                                            <span className="font-mono text-[9px] opacity-30 text-[#1A1A1A]">{s}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className={"bg-white border border-black/5 rounded-2xl p-8 flex flex-col items-center justify-center min-h-[220px] " + modeClass}>
+                                <p className="font-mono text-[10px] uppercase tracking-widest opacity-40 mb-8 text-[#1A1A1A]">Header claro</p>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11"><Active /></div>
+                                    <span className="text-2xl font-medium tracking-tight text-[#1A1A1A]">Toque</span>
+                                </div>
+                            </div>
+                            <div className="rounded-2xl p-8 flex flex-col items-center justify-center min-h-[220px]" style={{ background: "#b4462f", color: "#fff", "--toque-accent": "#fbe6e0" }}>
+                                <p className="font-mono text-[10px] uppercase tracking-widest mb-8" style={{ color: "rgba(255,255,255,0.45)" }}>Sobre clay</p>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11"><Active /></div>
+                                    <span className="text-2xl font-medium tracking-tight">Toque</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="mt-6 rounded-2xl p-10 flex items-center justify-between" style={{ background: "#171614", color: "#f7f6f4", "--toque-accent": "#df7c61" }}>
+                            <div>
+                                <p className="font-mono text-[10px] uppercase tracking-widest mb-3" style={{ color: "rgba(255,255,255,0.35)" }}>Modo oscuro</p>
+                                <p className="text-sm font-light opacity-70">La marca vive en currentColor; el toque en una variable. Invierte sin un segundo archivo.</p>
+                            </div>
+                            <div className="w-20 h-20"><Active /></div>
+                        </div>
+                    </div>
+
+                    <div className="mt-8 max-w-2xl text-center">
+                        <p className="font-mono text-xs opacity-40 uppercase tracking-ultra-wide leading-loose">
+                            Generated with Logo Generator<br/>2026
+                        </p>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<LogoShowcase />, document.getElementById('root'));
+    </script>
+</body>
+</html>

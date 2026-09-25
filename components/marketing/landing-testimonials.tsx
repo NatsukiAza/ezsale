@@ -4,7 +4,7 @@ import { Reveal } from "@/components/marketing/reveal";
 const testimonials = [
   {
     quote:
-      "Gracias a EZSale pudimos pasar de un excel con ventas a un sistema que cumple todas nuestras necesidades y es fácil de usar.",
+      "Gracias a Toque pudimos pasar de un excel con ventas a un sistema que cumple todas nuestras necesidades y es fácil de usar.",
     name: "Carolina",
     role: "Dueña",
     place: "Sacred Coffee",
@@ -27,7 +27,7 @@ export function LandingTestimonials() {
     <section className="bg-background py-section md:py-section-lg">
       <div className="mx-auto max-w-6xl px-6">
         <Reveal className="mx-auto mb-10 max-w-2xl text-center md:mb-14">
-          <h2 className="text-section-title">Quienes ya cobran con EZSale</h2>
+          <h2 className="text-section-title">Quienes ya cobran con Toque</h2>
           <p className="mt-4 text-body text-muted-foreground md:text-base md:leading-relaxed">
             Comercios reales que dejaron el Excel y el cuaderno atrás.
           </p>

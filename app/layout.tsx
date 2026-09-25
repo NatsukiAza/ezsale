@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EZSale",
+  title: "Toque",
   description:
     "Sistema de punto de venta para comercios: ventas, productos, reportes y equipo.",
 };

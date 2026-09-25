@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/tooltip";
 import { PURGA_TIENDA_SOFT_DELETE_DIAS } from "@/lib/billing/plans";
 import { atrasadoWarningText } from "@/lib/billing/warning-copy";
+import type { OrgTiendasPayload } from "@/lib/stores/load-org-tiendas";
 import { createClient } from "@/lib/supabase/client";
 import { clearGateCookieClient } from "@/lib/supabase/gate-cookie";
 import { cn } from "@/lib/utils";
@@ -56,6 +57,8 @@ type StorePickerProps = {
     diasRestantes: number | null;
     neverPaid: boolean;
   } | null;
+  /** Lista ya resuelta en el servidor: evita el fetch inicial. */
+  initialList?: OrgTiendasPayload | null;
 };
 
 function diasRestantes(hasta: string | null): number | null {
@@ -72,20 +75,24 @@ export function StorePicker({
   idOrganizacion,
   reportesMinYmd,
   billing = null,
+  initialList = null,
 }: StorePickerProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [signingOut, setSigningOut] = useState(false);
   const [tab, setTab] = useState<"tiendas" | "reportes">("tiendas");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialList);
   const [error, setError] = useState<string | null>(null);
-  const [org, setOrg] = useState<OrgInfo | null>(null);
-  const [tiendas, setTiendas] = useState<Tienda[]>([]);
-  const [eliminadas, setEliminadas] = useState<Tienda[]>([]);
+  const [org, setOrg] = useState<OrgInfo | null>(initialList?.organizacion ?? null);
+  const [tiendas, setTiendas] = useState<Tienda[]>(initialList?.tiendas ?? []);
+  const [eliminadas, setEliminadas] = useState<Tienda[]>(
+    initialList?.tiendasEliminadas ?? [],
+  );
   const [nuevoNombre, setNuevoNombre] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
   const creatingRef = useRef(false);
+  const autoSelectedRef = useRef(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editNombre, setEditNombre] = useState("");
   const [renaming, setRenaming] = useState(false);
@@ -111,31 +118,12 @@ export function StorePicker({
     setTiendas(data.tiendas ?? []);
     setEliminadas(data.tiendasEliminadas ?? []);
     setLoading(false);
-
-    if (
-      data.rol !== "admin" &&
-      (data.tiendas?.length ?? 0) === 1 &&
-      data.tiendas?.[0]
-    ) {
-      const idTienda = data.tiendas[0].id;
-      const sel = await fetch("/api/stores", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "select", idTienda }),
-      });
-      const selData = (await sel.json()) as { ok?: boolean; error?: string };
-      if (sel.ok && selData.ok) {
-        startTransition(() => {
-          router.push("/dashboard");
-          router.refresh();
-        });
-      }
-    }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
+    if (initialList) return;
     void load();
-  }, [load]);
+  }, [initialList, load]);
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -147,23 +135,34 @@ export function StorePicker({
     router.refresh();
   }
 
-  async function selectStore(idTienda: string) {
-    setError(null);
-    const res = await fetch("/api/stores", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "select", idTienda }),
-    });
-    const data = (await res.json()) as { ok?: boolean; error?: string };
-    if (!res.ok || !data.ok) {
-      setError(data.error ?? "No se pudo seleccionar la tienda.");
+  const selectStore = useCallback(
+    async (idTienda: string) => {
+      setError(null);
+      const res = await fetch("/api/stores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "select", idTienda }),
+      });
+      const data = (await res.json()) as { ok?: boolean; error?: string };
+      if (!res.ok || !data.ok) {
+        setError(data.error ?? "No se pudo seleccionar la tienda.");
+        return;
+      }
+      startTransition(() => {
+        router.push("/dashboard");
+        router.refresh();
+      });
+    },
+    [router, startTransition],
+  );
+
+  useEffect(() => {
+    if (autoSelectedRef.current || isAdmin || loading || tiendas.length !== 1) {
       return;
     }
-    startTransition(() => {
-      router.push("/dashboard");
-      router.refresh();
-    });
-  }
+    autoSelectedRef.current = true;
+    void selectStore(tiendas[0].id);
+  }, [isAdmin, loading, selectStore, tiendas]);
 
   async function createStore() {
     if (creatingRef.current) return;

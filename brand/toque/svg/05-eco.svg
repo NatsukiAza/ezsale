@@ -1,0 +1,17 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Toque  Eco">
+  <title>Toque  Eco</title>
+  <!-- Arcos que se abren desde el toque, cada vez más livianos -->
+  <g fill="none" stroke="currentColor" stroke-linecap="round">
+    <path d="M 51.45 68.14 A 16 16 0 0 0 31.86 48.55" stroke-width="4"/>
+    <path d="M 61.11 70.73 A 26 26 0 0 0 29.27 38.89" stroke-width="3.5" opacity="0.75"/>
+    <path d="M 70.77 73.32 A 36 36 0 0 0 26.68 29.23" stroke-width="3" opacity="0.5"/>
+  </g>
+  <!-- Satélites -->
+  <g fill="currentColor" opacity="0.55">
+    <circle cx="77.35" cy="48.95" r="2.5"/>
+    <circle cx="58" cy="25.9" r="2.5"/>
+    <circle cx="32.16" cy="20.17" r="2"/>
+  </g>
+  <!-- El toque -->
+  <circle cx="36" cy="64" r="7" fill="var(--toque-accent, currentColor)"/>
+</svg>

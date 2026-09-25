@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlan, parsePlanId } from "@/lib/billing/plans";
 import { getReportesMinDate } from "@/lib/billing/access";
+import { loadOrgTiendas } from "@/lib/stores/load-org-tiendas";
 import { StorePicker } from "./_components/store-picker";
 
 function toYmd(d: Date): string {
@@ -19,12 +21,30 @@ export default async function SeleccionarTiendaPage() {
   const minDate = getReportesMinDate(plan.reportesAnios);
   const reportesMinYmd = minDate ? toYmd(minDate) : null;
 
+  const admin = createAdminClient();
+  const loaded = admin
+    ? await loadOrgTiendas({
+        admin,
+        idOrganizacion: perfil.id_organizacion,
+        rol: perfil.rol,
+        idTiendaAsignada: perfil.id_tienda_asignada,
+        knownOrg: tienda
+          ? {
+              nombre: tienda.nombre,
+              plan: tienda.plan,
+              exceso_tiendas_hasta: tienda.exceso_tiendas_hasta,
+            }
+          : null,
+      })
+    : null;
+
   return (
     <StorePicker
       isAdmin={perfil.rol === "admin"}
       organizacionNombre={tienda?.nombre ?? "Tu negocio"}
       idOrganizacion={perfil.id_organizacion}
       reportesMinYmd={reportesMinYmd}
+      initialList={loaded?.ok ? loaded.data : null}
       billing={
         acceso?.phase === "atrasado"
           ? {
