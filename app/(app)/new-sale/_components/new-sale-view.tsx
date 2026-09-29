@@ -223,7 +223,7 @@ function CartPanel({
                         onChange={(e) =>
                           setLineDescuento(line.id_product, e.target.value)
                         }
-                        className="h-7 w-14 px-1.5 text-center font-mono text-xs tabular-nums"
+                        className="h-9 w-16 px-1.5 text-center font-mono text-sm tabular-nums"
                         aria-label={`Descuento porcentual para ${line.nombre}`}
                       />
                     </div>
@@ -252,14 +252,14 @@ function CartPanel({
                       <Button
                         type="button"
                         variant="outline"
-                        size="icon-xs"
+                        size="icon-lg"
                         aria-label="Quitar uno"
                         disabled={isBusy}
                         onClick={() =>
                           setLineQty(line.id_product, line.cantidad - 1)
                         }
                       >
-                        <Minus className="size-3" />
+                        <Minus className="size-4" />
                       </Button>
                       <span className="min-w-7 text-center font-mono text-sm font-semibold tabular-nums">
                         {line.cantidad}
@@ -267,14 +267,14 @@ function CartPanel({
                       <Button
                         type="button"
                         variant="outline"
-                        size="icon-xs"
+                        size="icon-lg"
                         aria-label="Agregar uno"
                         disabled={isBusy}
                         onClick={() =>
                           setLineQty(line.id_product, line.cantidad + 1)
                         }
                       >
-                        <Plus className="size-3" />
+                        <Plus className="size-4" />
                       </Button>
                     </div>
                   </div>
@@ -285,7 +285,7 @@ function CartPanel({
         )}
       </div>
 
-      <div className="shrink-0 space-y-3 border-t border-border bg-card p-4">
+      <div className="shrink-0 space-y-3 border-t border-border bg-card p-4 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-2 text-body-sm">
             <span className="text-muted-foreground">Subtotal</span>
@@ -354,7 +354,7 @@ function CartPanel({
                     disabled={isBusy}
                     onClick={() => setSelectedMedioId(m.id)}
                     className={cn(
-                      "flex h-10 items-center justify-center gap-2 rounded-md border text-sm font-medium transition-colors duration-100 disabled:opacity-60",
+                      "flex min-h-11 items-center justify-center gap-2 rounded-md border px-2 text-sm font-medium transition-colors duration-100 disabled:opacity-60",
                       active
                         ? "border-primary bg-primary text-primary-foreground"
                         : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-accent-foreground",
@@ -759,7 +759,10 @@ export function NewSaleView({
                 ) : null}
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="flex w-full flex-col p-0 sm:max-w-md">
+            <SheetContent
+              side="right"
+              className="flex w-full flex-col p-0 pt-[env(safe-area-inset-top,0px)] sm:max-w-md"
+            >
               <SheetHeader className="sr-only">
                 <SheetTitle>Carrito</SheetTitle>
               </SheetHeader>
@@ -781,7 +784,7 @@ export function NewSaleView({
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           {/* Product grid — surface-sunken para distinguir el POS del admin */}
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto bg-surface-sunken px-6 py-4 pb-24 lg:pb-4">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto bg-surface-sunken px-6 py-4 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] lg:pb-4">
             <div className="flex flex-wrap gap-1.5">
               <Button
                 type="button"
@@ -929,7 +932,7 @@ export function NewSaleView({
 
       {/* Mobile cart bar */}
       {cartItemCount > 0 ? (
-        <div className="fixed right-0 bottom-0 left-0 z-30 border-t border-border bg-card p-3 lg:hidden">
+        <div className="fixed right-0 bottom-0 left-0 z-30 border-t border-border bg-card p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] lg:hidden">
           <Button
             type="button"
             size="lg"

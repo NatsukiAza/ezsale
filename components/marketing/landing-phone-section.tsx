@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { PhoneFrame } from "@/components/marketing/device/phone-frame";
 import { PosPhoneMock } from "@/components/marketing/mock/pos-phone-mock";
 import { Reveal } from "@/components/marketing/reveal";
+import { InstallButton } from "@/components/pwa/install-button";
 
 export function LandingPhoneSection() {
   return (
@@ -20,16 +21,23 @@ export function LandingPhoneSection() {
             El carrito completo en la mano: productos, descuentos, medios de pago
             y total. Ideal para mesas, ferias o cuando el mostrador está lejos.
           </p>
-          <Button
-            asChild
-            size="xl"
-            className="mt-8 bg-white text-[var(--clay-800)] hover:bg-white/90"
-          >
-            <Link href="/registro">
-              Crear mi tienda
-              <ArrowRight />
-            </Link>
-          </Button>
+          <div className="mt-8 flex flex-col items-start gap-3 sm:flex-row sm:flex-wrap">
+            <Button
+              asChild
+              size="xl"
+              className="bg-white text-[var(--clay-800)] hover:bg-white/90"
+            >
+              <Link href="/registro">
+                Crear mi tienda
+                <ArrowRight />
+              </Link>
+            </Button>
+            <InstallButton
+              size="xl"
+              variant="outline"
+              className="border-white/30 bg-white/5 text-white hover:bg-white/10 hover:text-white"
+            />
+          </div>
         </Reveal>
 
         <Reveal delay={0.1} y={24} className="flex justify-center md:justify-end">

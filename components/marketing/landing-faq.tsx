@@ -9,7 +9,7 @@ import { Reveal } from "@/components/marketing/reveal";
 const faqs = [
   {
     q: "¿Necesito instalar algo?",
-    a: "No. Toque corre en el navegador. Abrís la URL, iniciás sesión y cobrás. Funciona en notebook, escritorio y celular.",
+    a: "No es obligatorio: Toque corre en el navegador. En el teléfono o la tablet podés instalarlo (queda el ícono y se abre a pantalla completa) desde la sección “También desde el celular” o desde el menú, una vez que entraste.",
   },
   {
     q: "¿Sirve para gastronomía y para comercio?",
