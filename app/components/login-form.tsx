@@ -89,7 +89,7 @@ export function LoginForm({
         </Alert>
       ) : null}
 
-      <Button type="submit" className="w-full" disabled={loading}>
+      <Button type="submit" size="lg" className="w-full" disabled={loading}>
         {loading ? <Loader2 className="animate-spin" /> : null}
         {loading ? "Entrando…" : "Entrar"}
       </Button>

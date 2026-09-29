@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/app/theme-provider";
+import { PwaProvider } from "@/components/pwa/pwa-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
@@ -23,10 +24,22 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#21201d",
+  viewportFit: "cover",
+  width: "device-width",
+  initialScale: 1,
+};
+
 export const metadata: Metadata = {
   title: "Toque",
   description:
     "Sistema de punto de venta para comercios: ventas, productos, reportes y equipo.",
+  appleWebApp: {
+    capable: true,
+    title: "Toque",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export default function RootLayout({
@@ -47,8 +60,10 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
-          <Toaster position="top-right" />
+          <PwaProvider>
+            <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
+            <Toaster position="top-right" />
+          </PwaProvider>
         </ThemeProvider>
       </body>
     </html>

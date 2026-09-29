@@ -7,6 +7,7 @@ import {
   SidebarNav,
   type SidebarUser,
 } from "@/components/app/sidebar-nav";
+import { InstallBanner } from "@/components/pwa/install-banner";
 import { cn } from "@/lib/utils";
 
 type AppShellProps = {
@@ -29,13 +30,14 @@ function AppShellInner({ user, children, className, banner }: AppShellProps) {
           className={cn(
             "transition-[padding] duration-200",
             fullWidth
-              ? "h-full overflow-hidden pt-14 lg:pt-0"
-              : "min-h-dvh pt-14 lg:pt-0",
+              ? "h-full overflow-hidden pt-[calc(3.5rem+env(safe-area-inset-top,0px))] lg:pt-0"
+              : "min-h-dvh pt-[calc(3.5rem+env(safe-area-inset-top,0px))] lg:pt-0",
             collapsed ? "lg:pl-14" : "lg:pl-[15.5rem]",
             className,
           )}
         >
           {banner}
+          <InstallBanner />
           <div
             className={cn(
               "mx-auto w-full",

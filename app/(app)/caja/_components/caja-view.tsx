@@ -358,7 +358,7 @@ export function CajaView({
           <>
             <PrivacyToggle />
             {canManageGastos ? (
-              <Button type="button" onClick={openCreate}>
+              <Button type="button" size="lg" onClick={openCreate}>
                 <Plus />
                 Registrar gasto
               </Button>
@@ -372,7 +372,7 @@ export function CajaView({
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
+            size="icon"
             aria-label="Día anterior"
             onClick={() => setDayDate((d) => addDaysYmd(d, -1))}
           >
@@ -385,13 +385,13 @@ export function CajaView({
               const v = e.target.value;
               if (v) setDayDate(v);
             }}
-            className="h-8 w-auto"
+            className="h-9 w-auto"
             aria-label="Elegir día"
           />
           <Button
             type="button"
             variant="outline"
-            size="icon-sm"
+            size="icon"
             aria-label="Día siguiente"
             onClick={() => setDayDate((d) => addDaysYmd(d, 1))}
           >
@@ -523,11 +523,11 @@ export function CajaView({
                       </DataTableCell>
                       {canManageGastos ? (
                         <DataTableCell className="w-24 text-right">
-                          <div className="inline-flex h-8 items-center justify-end gap-0.5">
+                          <div className="inline-flex items-center justify-end gap-0.5">
                             <Button
                               type="button"
                               variant="ghost"
-                              size="icon-sm"
+                              size="icon"
                               aria-label="Editar gasto"
                               onClick={() => openEdit(g)}
                             >
@@ -536,7 +536,7 @@ export function CajaView({
                             <Button
                               type="button"
                               variant="ghost"
-                              size="icon-sm"
+                              size="icon"
                               aria-label="Eliminar gasto"
                               onClick={() => setDeleting(g)}
                             >

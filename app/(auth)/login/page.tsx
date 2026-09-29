@@ -23,12 +23,12 @@ export default async function LoginPage({
 
   return (
     <div className="flex min-h-dvh flex-col">
-      <header className="flex h-14 items-center justify-between border-b border-border px-6">
+      <header className="flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] items-center justify-between border-b border-border px-6 pt-[env(safe-area-inset-top,0px)]">
         <BrandMark href="/" />
         <ThemeToggle />
       </header>
 
-      <main className="mx-auto flex w-full max-w-[26.25rem] flex-1 flex-col justify-center px-6 py-12">
+      <main className="mx-auto flex w-full max-w-[26.25rem] flex-1 flex-col justify-start px-6 py-8 sm:justify-center sm:py-12">
         {!configured ? (
           <Alert className="mb-8">
             <AlertDescription>

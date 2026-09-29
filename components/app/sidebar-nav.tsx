@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Smartphone,
   Store,
   Users,
   Wallet,
@@ -25,6 +26,8 @@ import { ThemeToggle } from "@/components/app/theme-toggle";
 import { BrandMark } from "@/components/app/brand-mark";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { INSTALL_CTA_LABEL } from "@/lib/pwa/constants";
+import { usePwaInstall } from "@/components/pwa/pwa-context";
 import {
   Sheet,
   SheetContent,
@@ -125,6 +128,7 @@ function SidebarBody({
 }) {
   const router = useRouter();
   const [signingOut, setSigningOut] = useState(false);
+  const { showCta, openModal } = usePwaInstall();
 
   async function handleSignOut() {
     const supabase = createClient();
@@ -177,6 +181,37 @@ function SidebarBody({
           collapsed={collapsed}
           onNavigate={onNavigate}
         />
+        {showCta ? (
+          <div className="mt-1 px-2">
+            {collapsed ? (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={openModal}
+                    aria-label={INSTALL_CTA_LABEL}
+                    className="flex h-9 w-full items-center justify-center rounded-md px-0 text-sm font-medium text-sidebar-foreground transition-colors duration-100 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  >
+                    <Smartphone className="size-[18px] shrink-0" strokeWidth={1.75} />
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent side="right">{INSTALL_CTA_LABEL}</TooltipContent>
+              </Tooltip>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  openModal();
+                  onNavigate?.();
+                }}
+                className="flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-sidebar-foreground transition-colors duration-100 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+              >
+                <Smartphone className="size-[18px] shrink-0" strokeWidth={1.75} />
+                <span className="truncate">{INSTALL_CTA_LABEL}</span>
+              </button>
+            )}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-auto border-t border-sidebar-border p-2">
@@ -243,7 +278,7 @@ export function SidebarNav({ user }: SidebarNavProps) {
 
   return (
     <>
-      <div className="fixed top-0 left-0 z-40 flex h-14 w-full items-center gap-2 border-b border-border bg-background px-3 lg:hidden">
+      <div className="fixed top-0 left-0 z-40 flex h-[calc(3.5rem+env(safe-area-inset-top,0px))] w-full items-center gap-2 border-b border-border bg-background px-3 pt-[env(safe-area-inset-top,0px)] lg:hidden">
         <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
           <SheetTrigger asChild>
             <Button
