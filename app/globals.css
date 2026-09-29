@@ -298,28 +298,49 @@
   --ease-enter: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Radial cálido + grain — en el shell (no en body: el shell tapa el body) */
-@utility bg-atmosphere {
+/* Radial cálido en el shell (no en body: el shell tapa el body).
+   Clase propia (no @utility): el grain SVG con feTurbulence +
+   background-attachment:fixed re-pinta en cada frame y traba el scroll. */
+.bg-atmosphere {
   background-color: var(--background);
-  background-image:
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
-    radial-gradient(
-      ellipse 100% 70% at 50% -10%,
-      color-mix(in srgb, var(--clay-200) 55%, transparent),
-      transparent 72%
-    );
-  background-attachment: fixed;
+  background-attachment: scroll;
+  background-image: radial-gradient(
+    ellipse 100% 70% at 50% -10%,
+    color-mix(in srgb, var(--clay-200) 55%, transparent),
+    transparent 72%
+  );
 }
 
 .dark .bg-atmosphere,
 html.dark .bg-atmosphere {
-  background-image:
-    url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"),
-    radial-gradient(
-      ellipse 100% 70% at 50% -10%,
-      color-mix(in srgb, var(--clay-800) 28%, transparent),
-      transparent 72%
-    );
+  background-image: radial-gradient(
+    ellipse 100% 70% at 50% -10%,
+    color-mix(in srgb, var(--clay-800) 28%, transparent),
+    transparent 72%
+  );
+}
+
+@media (pointer: fine) and (hover: hover) and (min-width: 1024px) {
+  .bg-atmosphere {
+    background-image:
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.07'/%3E%3C/svg%3E"),
+      radial-gradient(
+        ellipse 100% 70% at 50% -10%,
+        color-mix(in srgb, var(--clay-200) 55%, transparent),
+        transparent 72%
+      );
+  }
+
+  .dark .bg-atmosphere,
+  html.dark .bg-atmosphere {
+    background-image:
+      url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E"),
+      radial-gradient(
+        ellipse 100% 70% at 50% -10%,
+        color-mix(in srgb, var(--clay-800) 28%, transparent),
+        transparent 72%
+      );
+  }
 }
 
 /* Marketing — DESIGN.md §13 · no usar fuera de (marketing) */
