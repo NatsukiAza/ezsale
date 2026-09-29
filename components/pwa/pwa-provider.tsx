@@ -73,7 +73,9 @@ export function PwaProvider({ children }: { children: ReactNode }) {
     window.addEventListener("appinstalled", onInstalled);
 
     if ("serviceWorker" in navigator) {
-      void navigator.serviceWorker.register("/sw.js");
+      void navigator.serviceWorker.register("/sw.js", {
+        updateViaCache: "none",
+      });
     }
 
     return () => {
