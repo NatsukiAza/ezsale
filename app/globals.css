@@ -415,32 +415,34 @@ html.is-scrolling .coffee-wash-b {
   animation-play-state: paused;
 }
 
+/* Igual que en claro: mismos ángulos, paradas y opacidad. Solo colores. */
 .dark .coffee-wash-a,
 html.dark .coffee-wash-a {
   background: conic-gradient(
     from 40deg at 30% 28%,
-    var(--clay-950) 0deg,
-    var(--clay-800) 70deg,
-    var(--clay-400) 140deg,
-    var(--clay-100) 200deg,
-    var(--clay-600) 270deg,
-    var(--clay-950) 360deg
+    var(--clay-600) 0deg,
+    var(--clay-500) 55deg,
+    var(--clay-800) 120deg,
+    var(--clay-950) 185deg,
+    var(--clay-900) 245deg,
+    var(--clay-400) 300deg,
+    var(--clay-600) 360deg
   );
-  opacity: 0.95;
+  opacity: 0.92;
 }
 
 .dark .coffee-wash-b,
 html.dark .coffee-wash-b {
   background: conic-gradient(
-    from 160deg at 72% 74%,
-    var(--clay-900) 0deg,
-    var(--clay-200) 80deg,
-    var(--clay-800) 160deg,
-    var(--clay-300) 240deg,
-    var(--clay-950) 320deg,
-    var(--clay-900) 360deg
+    from 200deg at 72% 74%,
+    var(--clay-500) 0deg,
+    var(--clay-950) 70deg,
+    var(--clay-400) 145deg,
+    var(--clay-900) 220deg,
+    var(--clay-600) 290deg,
+    var(--clay-500) 360deg
   );
-  opacity: 0.78;
+  opacity: 0.72;
 }
 
 @utility bg-sidebar-veil {
