@@ -1,13 +1,18 @@
 import { DashboardView } from "@/app/(app)/dashboard/_components/dashboard-view";
+import {
+  loadTopProductos,
+  TopProductosFallback,
+  TopProductosList,
+} from "@/app/(app)/dashboard/_components/top-productos";
 import { getPerfilTienda } from "@/lib/supabase/cached-session";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
+import { Suspense } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 export const dynamic = "force-dynamic";
 
 const DIA_CORTO_ES = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"] as const;
-const TOP_PRODUCTOS_DIAS = 90;
 
 function utcYmd(d: Date): string {
   return d.toISOString().slice(0, 10);
@@ -26,26 +31,30 @@ async function loadDashboardData(
   const todayStart = new Date(Date.UTC(y, mo, d, 0, 0, 0));
   const todayEnd = new Date(Date.UTC(y, mo, d + 1, 0, 0, 0));
   const weekStart = new Date(Date.UTC(y, mo, d - 6, 0, 0, 0));
-  const topDesde = new Date(Date.UTC(y, mo, d - (TOP_PRODUCTOS_DIAS - 1), 0, 0, 0));
 
-  const [hoyRes, diariasRes, bestRes, perfilesRes, gastosHoyRes] =
+  const [hoyRes, listaRes, diariasRes, perfilesRes, gastosHoyRes] =
     await Promise.all([
       supabase
         .from("ventas")
-        .select("id, id_usuario, monto_total, descuento_monto, fecha_venta")
+        .select("monto_total")
+        .eq("id_tienda", idTienda)
+        .gte("fecha_venta", todayStart.toISOString())
+        .lt("fecha_venta", todayEnd.toISOString()),
+      supabase
+        .from("ventas")
+        .select(
+          "id, id_usuario, monto_total, descuento_monto, fecha_venta, detalle_ventas ( cantidad, productos ( nombre ) )",
+        )
         .eq("id_tienda", idTienda)
         .gte("fecha_venta", todayStart.toISOString())
         .lt("fecha_venta", todayEnd.toISOString())
-        .order("fecha_venta", { ascending: false }),
+        .order("fecha_venta", { ascending: false })
+        .order("id", { foreignTable: "detalle_ventas", ascending: true })
+        .limit(5),
       supabase.rpc("ventas_diarias_por_tienda", {
         p_id_tienda: idTienda,
         p_desde: weekStart.toISOString(),
         p_hasta: todayEnd.toISOString(),
-      }),
-      supabase.rpc("top_productos_por_tienda", {
-        p_id_tienda: idTienda,
-        p_limit: 3,
-        p_desde: topDesde.toISOString(),
       }),
       supabase
         .from("perfiles")
@@ -63,11 +72,11 @@ async function loadDashboardData(
   if (hoyRes.error) {
     return { error: hoyRes.error.message } as const;
   }
+  if (listaRes.error) {
+    return { error: listaRes.error.message } as const;
+  }
   if (diariasRes.error) {
     return { error: diariasRes.error.message } as const;
-  }
-  if (bestRes.error) {
-    return { error: bestRes.error.message } as const;
   }
   if (perfilesRes.error) {
     return { error: perfilesRes.error.message } as const;
@@ -85,8 +94,7 @@ async function loadDashboardData(
   );
   const enCajaHoy = totalHoy - totalGastosHoy;
 
-  const rowsHoyLista = rowsHoyAll.slice(0, 5);
-  const vidsLista = rowsHoyLista.map((v) => v.id as string);
+  const rowsHoyLista = listaRes.data ?? [];
 
   const nameByUser = new Map<string, string>();
   for (const p of perfilesRes.data ?? []) {
@@ -94,40 +102,31 @@ async function loadDashboardData(
     nameByUser.set(p.id as string, nombre);
   }
 
+  function nombreProducto(productos: unknown): string {
+    if (productos == null) return "Producto";
+    if (Array.isArray(productos)) {
+      const first = productos[0] as { nombre?: string } | undefined;
+      return first?.nombre ?? "Producto";
+    }
+    return (productos as { nombre: string }).nombre;
+  }
+
   const lineasPorVenta = new Map<
     string,
     { nombre: string; cantidad: number }[]
   >();
 
-  if (vidsLista.length > 0) {
-    const detsRes = await supabase
-      .from("detalle_ventas")
-      .select("id_venta, cantidad, productos ( nombre )")
-      .in("id_venta", vidsLista)
-      .order("id");
-
-    if (detsRes.error) {
-      return { error: detsRes.error.message } as const;
-    }
-
-    function nombreProducto(row: { productos: unknown }): string {
-      const pr = row.productos;
-      if (pr == null) return "Producto";
-      if (Array.isArray(pr)) {
-        const first = pr[0] as { nombre?: string } | undefined;
-        return first?.nombre ?? "Producto";
-      }
-      return (pr as { nombre: string }).nombre;
-    }
-
-    for (const row of detsRes.data ?? []) {
-      const vid = row.id_venta as string;
-      const nombre = nombreProducto(row as { productos: unknown });
-      const cantidad = Number(row.cantidad);
-      const list = lineasPorVenta.get(vid) ?? [];
-      list.push({ nombre, cantidad });
-      lineasPorVenta.set(vid, list);
-    }
+  for (const row of rowsHoyLista) {
+    const vid = row.id as string;
+    const dets = (row.detalle_ventas ?? []) as {
+      cantidad: number | string;
+      productos: unknown;
+    }[];
+    const list = dets.map((det) => ({
+      nombre: nombreProducto(det.productos),
+      cantidad: Number(det.cantidad),
+    }));
+    lineasPorVenta.set(vid, list);
   }
 
   const ventasHoy = rowsHoyLista.map((v) => {
@@ -178,13 +177,6 @@ async function loadDashboardData(
 
   const totalSemana = diasSemana.reduce((s, x) => s + x.monto, 0);
 
-  const bestsellers = (bestRes.data ?? []).map(
-    (row: { nombre: string; unidades: string | number }) => ({
-      nombre: row.nombre,
-      unidades: Number(row.unidades),
-    }),
-  );
-
   return {
     totalHoy,
     enCajaHoy,
@@ -192,7 +184,6 @@ async function loadDashboardData(
     ventasHoy,
     diasSemana,
     totalSemana,
-    bestsellers,
   };
 }
 
@@ -207,6 +198,7 @@ export default async function DashboardPage() {
   const idOrganizacion = perfil.id_organizacion;
   const esAdmin = perfil.rol === "admin";
 
+  const topPromise = loadTopProductos(idTienda);
   const data = await loadDashboardData(supabase, idTienda, idOrganizacion);
 
   const firstName =
@@ -235,7 +227,11 @@ export default async function DashboardPage() {
       ventasHoy={data.ventasHoy}
       diasSemana={data.diasSemana}
       totalSemana={data.totalSemana}
-      bestsellers={data.bestsellers}
+      topProductos={
+        <Suspense fallback={<TopProductosFallback />}>
+          <TopProductosList promise={topPromise} />
+        </Suspense>
+      }
     />
   );
 }

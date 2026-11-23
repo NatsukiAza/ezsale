@@ -6,13 +6,6 @@ import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-function searchFold(s: string) {
-  return s
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
 export default async function ProductsPage() {
   const { user, perfil, usaStock } = await getPerfilTienda();
   if (!user) redirect("/login");
@@ -48,9 +41,6 @@ export default async function ProductsPage() {
     descripcion: row.descripcion,
     precio_actual: row.precio_actual,
     categoriaNombre: row.categoriaNombre,
-    searchText: searchFold(
-      `${row.nombre} ${row.descripcion} ${row.categoriaNombre ?? ""}`,
-    ),
   }));
 
   return (

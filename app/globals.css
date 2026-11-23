@@ -298,9 +298,18 @@
   --ease-enter: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* Radial cálido en el shell (no en body: el shell tapa el body).
-   Clase propia (no @utility): el grain SVG con feTurbulence +
-   background-attachment:fixed re-pinta en cada frame y traba el scroll. */
+/* Capa fija del fondo. Sin background-attachment: fixed: eso repinta
+   todo el viewport en cada frame de scroll. */
+.atmosphere-fixed {
+  position: fixed;
+  inset: 0;
+  z-index: -20;
+  pointer-events: none;
+  transform: translateZ(0);
+}
+
+/* Radial cálido en el shell. El grain SVG solo entra en desktop con
+   puntero fino: en el celular re-pinta y traba el scroll. */
 .bg-atmosphere {
   background-color: var(--background);
   background-attachment: scroll;
@@ -340,6 +349,111 @@ html.dark .bg-atmosphere {
         color-mix(in srgb, var(--clay-800) 28%, transparent),
         transparent 72%
       );
+  }
+}
+
+/* Remolino: dos conos giran al revés. La capa es más grande que la
+   pantalla y el recorte es overflow, no una máscara: la máscara repintaba
+   el fondo en cada frame. Solo transform. Sin blur ni mix-blend. */
+.coffee-wash {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: paint;
+}
+
+.coffee-wash-a,
+.coffee-wash-b {
+  position: absolute;
+  left: -150%;
+  top: -150%;
+  width: 400%;
+  height: 400%;
+}
+
+.coffee-wash-a {
+  background: conic-gradient(
+    from 40deg at 30% 28%,
+    var(--clay-50) 0deg,
+    var(--clay-200) 55deg,
+    var(--clay-700) 120deg,
+    var(--clay-950) 185deg,
+    var(--clay-800) 245deg,
+    var(--clay-300) 300deg,
+    var(--clay-50) 360deg
+  );
+  opacity: 0.92;
+  transform-origin: 50% 50%;
+  animation: coffee-stir 7s linear infinite;
+}
+
+.coffee-wash-b {
+  background: conic-gradient(
+    from 200deg at 72% 74%,
+    var(--clay-100) 0deg,
+    var(--clay-900) 70deg,
+    var(--clay-200) 145deg,
+    var(--clay-950) 220deg,
+    var(--clay-300) 290deg,
+    var(--clay-100) 360deg
+  );
+  opacity: 0.72;
+  transform-origin: 50% 50%;
+  animation: coffee-stir 4.5s linear infinite reverse;
+}
+
+@keyframes coffee-stir {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+html.is-scrolling .coffee-wash-a,
+html.is-scrolling .coffee-wash-b {
+  animation-play-state: paused;
+}
+
+/* Igual que en claro: mismos ángulos, paradas y opacidad. Solo colores. */
+.dark .coffee-wash-a,
+html.dark .coffee-wash-a {
+  background: conic-gradient(
+    from 40deg at 30% 28%,
+    var(--clay-600) 0deg,
+    var(--clay-500) 55deg,
+    var(--clay-800) 120deg,
+    var(--clay-950) 185deg,
+    var(--clay-900) 245deg,
+    var(--clay-400) 300deg,
+    var(--clay-600) 360deg
+  );
+  opacity: 0.92;
+}
+
+.dark .coffee-wash-b,
+html.dark .coffee-wash-b {
+  background: conic-gradient(
+    from 200deg at 72% 74%,
+    var(--clay-500) 0deg,
+    var(--clay-950) 70deg,
+    var(--clay-400) 145deg,
+    var(--clay-900) 220deg,
+    var(--clay-600) 290deg,
+    var(--clay-500) 360deg
+  );
+  opacity: 0.72;
+}
+
+@utility bg-sidebar-veil {
+  background-color: color-mix(in srgb, var(--sidebar) 52%, transparent);
+  /* Capa propia: el velo se compone, no se repinta el texto en cada frame. */
+  transform: translateZ(0);
+}
+
+@media print {
+  .coffee-wash {
+    display: none;
   }
 }
 
@@ -526,7 +640,7 @@ html.dark .bg-pricing-radial {
   @keyframes metric-enter {
     from {
       opacity: 0;
-      transform: translateY(6px);
+      transform: translateY(10px);
     }
     to {
       opacity: 1;
@@ -535,7 +649,7 @@ html.dark .bg-pricing-radial {
   }
 
   .metric-enter {
-    animation: metric-enter 280ms var(--ease-enter) both;
+    animation: metric-enter 420ms var(--ease-enter) both;
     animation-delay: var(--metric-delay, 0ms);
   }
 

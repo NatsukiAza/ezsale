@@ -1,10 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { Fragment, useState, type ReactNode } from "react";
 import { ChevronDown, ChevronRight, Plus, Receipt } from "lucide-react";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { PageHeader } from "@/components/app/page-header";
 import { MetricTile } from "@/components/app/metric-tile";
 import { Money, AnimatedCount } from "@/components/app/money";
@@ -20,14 +19,13 @@ import {
   DataTableRow,
 } from "@/components/app/data-table";
 import { Button } from "@/components/ui/button";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
 import { formatArs } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+const WeekChart = dynamic(
+  () => import("./week-chart").then((m) => m.WeekChart),
+  { loading: () => <div className="h-[260px] w-full" /> },
+);
 
 export type VentaHoyLinea = {
   nombre: string;
@@ -51,11 +49,6 @@ export type DiaSemanaItem = {
   esHoy: boolean;
 };
 
-export type BestsellerItem = {
-  nombre: string;
-  unidades: number;
-};
-
 type DashboardViewProps = {
   tiendaNombre?: string | null;
   /** Nombre de pila para el saludo del panel. */
@@ -67,7 +60,7 @@ type DashboardViewProps = {
   ventasHoy: VentaHoyItem[];
   diasSemana: DiaSemanaItem[];
   totalSemana: number;
-  bestsellers: BestsellerItem[];
+  topProductos: ReactNode;
 };
 
 function panelGreeting(firstName?: string | null): string {
@@ -77,13 +70,6 @@ function panelGreeting(firstName?: string | null): string {
   const name = firstName?.trim();
   return name ? `${part}, ${name}` : part;
 }
-
-const chartConfig = {
-  monto: {
-    label: "Ventas",
-    color: "var(--chart-1)",
-  },
-} satisfies ChartConfig;
 
 export function DashboardView({
   tiendaNombre,
@@ -95,18 +81,12 @@ export function DashboardView({
   ventasHoy,
   diasSemana,
   totalSemana,
-  bestsellers,
+  topProductos,
 }: DashboardViewProps) {
-  const router = useRouter();
   const ticketPromedio =
     cantidadVentasHoy > 0 ? totalHoy / cantidadVentasHoy : 0;
   const [expanded, setExpanded] = useState<string | null>(null);
   const sparkValues = diasSemana.map((d) => d.monto);
-
-  useEffect(() => {
-    // El SSR puede venir de router cache stale (misma causa que Caja).
-    router.refresh();
-  }, [router]);
 
   return (
     <div className="pb-10">
@@ -150,7 +130,7 @@ export function DashboardView({
           />
           <MetricTile
             label="Ventas de hoy"
-            staggerMs={80}
+            staggerMs={100}
             value={<AnimatedCount value={cantidadVentasHoy} />}
             hint={
               cantidadVentasHoy === 0
@@ -162,7 +142,7 @@ export function DashboardView({
           />
           <MetricTile
             label="Ticket promedio"
-            staggerMs={160}
+            staggerMs={200}
             value={<Money value={ticketPromedio} display animate />}
             hint={
               cantidadVentasHoy === 0 ? "Cuando haya ventas" : undefined
@@ -170,7 +150,7 @@ export function DashboardView({
           />
           <MetricTile
             label="Total semana"
-            staggerMs={240}
+            staggerMs={300}
             value={<Money value={totalSemana} display animate />}
             hint="Últimos 7 días"
             footer={<Sparkline values={sparkValues} />}
@@ -193,78 +173,13 @@ export function DashboardView({
               </div>
             </div>
             <div className="rounded-lg border bg-card p-4">
-              <ChartContainer config={chartConfig} className="h-[260px] w-full">
-                <BarChart
-                  data={diasSemana}
-                  margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="label"
-                    tickLine={false}
-                    axisLine={false}
-                    tickMargin={8}
-                  />
-                  <YAxis
-                    tickLine={false}
-                    axisLine={false}
-                    width={48}
-                    tickFormatter={(v) =>
-                      typeof v === "number" && v >= 1000
-                        ? `${Math.round(v / 1000)}k`
-                        : String(v)
-                    }
-                  />
-                  <ChartTooltip
-                    content={
-                      <ChartTooltipContent
-                        formatter={(value) =>
-                          formatArs(Number(value ?? 0))
-                        }
-                      />
-                    }
-                  />
-                  <Bar
-                    dataKey="monto"
-                    fill="var(--color-monto)"
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={48}
-                  />
-                </BarChart>
-              </ChartContainer>
+              <WeekChart dias={diasSemana} />
             </div>
           </div>
 
           <div className="space-y-3">
             <h2 className="text-h2">Top productos</h2>
-            <div className="rounded-lg border bg-card">
-              {bestsellers.length === 0 ? (
-                <p className="px-4 py-8 text-center text-body-sm text-muted-foreground">
-                  Todavía no hay top — las primeras ventas del día se anotan acá.
-                </p>
-              ) : (
-                <ol className="divide-y divide-border">
-                  {bestsellers.map((b, i) => (
-                    <li
-                      key={`${b.nombre}-${i}`}
-                      className="flex items-center justify-between gap-3 px-4 py-3"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <span className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-surface-sunken text-caption font-semibold text-muted-foreground">
-                          {i + 1}
-                        </span>
-                        <span className="truncate text-sm font-medium">
-                          {b.nombre}
-                        </span>
-                      </div>
-                      <span className="shrink-0 font-mono text-body-sm tabular-nums text-muted-foreground">
-                        {b.unidades} u.
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              )}
-            </div>
+            <div className="rounded-lg border bg-card">{topProductos}</div>
           </div>
         </section>
 

@@ -3,7 +3,6 @@
 import {
   useCallback,
   useDeferredValue,
-  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -60,9 +59,16 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ProductoFormDialog } from "./producto-form-dialog";
-import { CategoriaFormDialog } from "./categoria-form-dialog";
 import { StockCell } from "./stock-cell";
+
+const ProductoFormDialog = dynamic(
+  () => import("./producto-form-dialog").then((m) => m.ProductoFormDialog),
+  { loading: () => null },
+);
+const CategoriaFormDialog = dynamic(
+  () => import("./categoria-form-dialog").then((m) => m.CategoriaFormDialog),
+  { loading: () => null },
+);
 
 const StockTransferDialog = dynamic(
   () =>
@@ -156,14 +162,20 @@ export function ProductsView({
   initialUsaStock: boolean;
   initialStockByProductId: Record<string, number> | null;
   initialCategorias: CategoriaListItem[];
-  initialProductos: ProductoListItem[];
+  initialProductos: Array<Omit<ProductoListItem, "searchText">>;
   initialLoadError?: string | null;
 }) {
   const PRODUCTOS_POR_PAGINA = 10;
   const [categoriasList, setCategoriasList] =
     useState<CategoriaListItem[]>(initialCategorias);
-  const [productos, setProductos] =
-    useState<ProductoListItem[]>(initialProductos);
+  const [productos, setProductos] = useState<ProductoListItem[]>(() =>
+    initialProductos.map((p) => ({
+      ...p,
+      searchText: searchFold(
+        `${p.nombre} ${p.descripcion} ${p.categoriaNombre ?? ""}`,
+      ),
+    })),
+  );
   const [loadError, setLoadError] = useState<string | null>(initialLoadError);
   const [loadingList, setLoadingList] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>("productos");
@@ -180,6 +192,12 @@ export function ProductsView({
     null,
   );
   const [currentProductPage, setCurrentProductPage] = useState(1);
+  const listKey = `${searchQuery}\0${filterCategoriaId ?? ""}`;
+  const [pageListKey, setPageListKey] = useState(listKey);
+  if (pageListKey !== listKey) {
+    setPageListKey(listKey);
+    setCurrentProductPage(1);
+  }
   const [editingProductoId, setEditingProductoId] = useState<string | null>(
     null,
   );
@@ -271,11 +289,12 @@ export function ProductsView({
     );
   }, [productosFiltrados.length]);
 
+  const productPage = Math.min(currentProductPage, totalProductPages);
   const productosPaginados = useMemo(() => {
     if (priceEditMode) return productosFiltrados;
-    const start = (currentProductPage - 1) * PRODUCTOS_POR_PAGINA;
+    const start = (productPage - 1) * PRODUCTOS_POR_PAGINA;
     return productosFiltrados.slice(start, start + PRODUCTOS_POR_PAGINA);
-  }, [productosFiltrados, currentProductPage, priceEditMode]);
+  }, [productosFiltrados, productPage, priceEditMode]);
 
   const precioOriginalById = useMemo(() => {
     const map = new Map<string, number>();
@@ -458,16 +477,6 @@ export function ProductsView({
     setKardexProductoId(productId);
     setActiveTab("movimientos");
   }
-
-  useEffect(() => {
-    setCurrentProductPage(1);
-  }, [searchQuery, filterCategoriaId]);
-
-  useEffect(() => {
-    if (currentProductPage > totalProductPages) {
-      setCurrentProductPage(totalProductPages);
-    }
-  }, [currentProductPage, totalProductPages]);
 
   function enterPriceEditMode() {
     if (!isAdmin) return;
@@ -1077,25 +1086,25 @@ export function ProductsView({
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        setCurrentProductPage((p) => Math.max(1, p - 1))
+                        setCurrentProductPage(Math.max(1, productPage - 1))
                       }
-                      disabled={currentProductPage === 1}
+                      disabled={productPage === 1}
                     >
                       Anterior
                     </Button>
                     <span className="px-2 text-body-sm text-muted-foreground">
-                      {currentProductPage} de {totalProductPages}
+                      {productPage} de {totalProductPages}
                     </span>
                     <Button
                       type="button"
                       variant="outline"
                       size="sm"
                       onClick={() =>
-                        setCurrentProductPage((p) =>
-                          Math.min(totalProductPages, p + 1),
+                        setCurrentProductPage(
+                          Math.min(totalProductPages, productPage + 1),
                         )
                       }
-                      disabled={currentProductPage === totalProductPages}
+                      disabled={productPage === totalProductPages}
                     >
                       Siguiente
                     </Button>
