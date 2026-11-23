@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
+  Settings,
   Smartphone,
   Store,
   Users,
@@ -49,6 +50,7 @@ const navItems = [
   { href: "/reports", label: "Reportes", icon: ChartColumn, teamOnly: true },
   { href: "/team", label: "Equipo", icon: Users, teamOnly: true },
   { href: "/cuenta", label: "Cuenta", icon: CreditCard, teamOnly: false },
+  { href: "/configuracion", label: "Configuración", icon: Settings, teamOnly: false },
 ] as const;
 
 export type SidebarUser = {
@@ -86,7 +88,7 @@ function NavLinks({
           <Link
             key={item.href}
             href={item.href}
-            prefetch
+            prefetch={item.href === "/products" ? true : null}
             onClick={onNavigate}
             className={cn(
               "flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium transition-colors duration-100",
@@ -314,7 +316,7 @@ export function SidebarNav({ user }: SidebarNavProps) {
 
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-30 hidden border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex lg:flex-col",
+          "fixed inset-y-0 left-0 z-30 hidden border-r border-sidebar-border bg-sidebar-veil transition-[width] duration-200 lg:flex lg:flex-col",
           collapsed ? "w-14" : "w-[15.5rem]",
         )}
       >

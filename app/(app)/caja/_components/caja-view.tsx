@@ -1,12 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ChevronLeft,
@@ -235,10 +230,10 @@ export function CajaView({
     [idTienda],
   );
 
-  useEffect(() => {
-    // Siempre refetch al montar / cambiar día: el SSR puede venir de router cache stale.
-    void loadDay(dayDate);
-  }, [dayDate, loadDay]);
+  function showDay(next: string) {
+    setDayDate(next);
+    void loadDay(next);
+  }
 
   async function afterGastoMutation() {
     await revalidateCaja();
@@ -374,7 +369,7 @@ export function CajaView({
             variant="outline"
             size="icon"
             aria-label="Día anterior"
-            onClick={() => setDayDate((d) => addDaysYmd(d, -1))}
+            onClick={() => showDay(addDaysYmd(dayDate, -1))}
           >
             <ChevronLeft />
           </Button>
@@ -383,7 +378,7 @@ export function CajaView({
             value={dayDate}
             onChange={(e) => {
               const v = e.target.value;
-              if (v) setDayDate(v);
+              if (v) showDay(v);
             }}
             className="h-9 w-auto"
             aria-label="Elegir día"
@@ -393,7 +388,7 @@ export function CajaView({
             variant="outline"
             size="icon"
             aria-label="Día siguiente"
-            onClick={() => setDayDate((d) => addDaysYmd(d, 1))}
+            onClick={() => showDay(addDaysYmd(dayDate, 1))}
           >
             <ChevronRight />
           </Button>
@@ -424,13 +419,13 @@ export function CajaView({
               <MetricTile
                 label="Total gastos"
                 value={<Money value={totalGastos} display />}
-                staggerMs={80}
+                staggerMs={100}
               />
               <MetricTile
                 hero
                 label="En caja"
                 value={<Money value={enCaja} display />}
-                staggerMs={160}
+                staggerMs={200}
               />
             </>
           )}

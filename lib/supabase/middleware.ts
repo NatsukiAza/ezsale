@@ -78,7 +78,8 @@ export async function updateSession(request: NextRequest) {
     path.startsWith("/products") ||
     path.startsWith("/reports") ||
     path.startsWith("/caja") ||
-    path.startsWith("/team");
+    path.startsWith("/team") ||
+    path.startsWith("/configuracion");
   const isProtected =
     isAppShell ||
     path.startsWith("/cuenta") ||

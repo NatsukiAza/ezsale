@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { CoffeeWash } from "@/components/app/coffee-wash";
 import { PrivacyProvider } from "@/components/app/privacy";
 import { SidebarProvider, useSidebar } from "@/components/app/sidebar-context";
 import {
@@ -24,7 +25,17 @@ function AppShellInner({ user, children, className, banner }: AppShellProps) {
 
   return (
     <PrivacyProvider>
-      <div className={cn("bg-atmosphere", fullWidth ? "h-dvh overflow-hidden" : "min-h-dvh")}>
+      <div
+        className={cn(
+          "isolate bg-background",
+          fullWidth ? "h-dvh overflow-hidden" : "min-h-dvh",
+        )}
+      >
+        <div
+          aria-hidden
+          className="atmosphere-fixed bg-atmosphere"
+        />
+        <CoffeeWash />
         <SidebarNav user={user} />
         <div
           className={cn(
